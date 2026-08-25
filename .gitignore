@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# F1 project specifics
+data/fastf1_cache/
+database/f1_analytics.db
+database/f1_analytics.db-journal
+database/f1_analytics.db-wal
+database/f1_analytics.db-shm
+logs/
+*.log
+
+# Power BI
+~$*.pbix

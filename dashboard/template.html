@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 Strategy Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg-page:        #0E1116;
+    --bg-elevated:    #161B22;
+    --bg-card:        #1C232C;
+    --bg-card-hover:  #232B36;
+    --bg-input:       #0B0E13;
+    --border:         #2A3340;
+    --border-strong:  #3A4554;
+    --text-primary:   #E6EDF3;
+    --text-secondary: #8B98A5;
+    --text-tertiary:  #5A6675;
+    --accent-red:     #E10600;
+    --accent-red-dim: #B30500;
+    --accent-amber:   #F4B400;
+    --accent-green:   #1FB55A;
+    --accent-blue:    #4C8DFF;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-page); color: var(--text-primary);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .sidebar {
+    background: var(--bg-elevated); border-right: 1px solid var(--border);
+    padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 20px 20px; border-bottom: 1px solid var(--border); }
+  .brand-mark {
+    width: 32px; height: 32px; background: var(--accent-red); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: white;
+  }
+  .brand-text { font-size: 13px; font-weight: 600; }
+  .brand-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+  .nav-section { padding: 16px 0 8px; }
+  .nav-section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-tertiary); padding: 0 20px 8px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 20px;
+    cursor: pointer; font-size: 13px; color: var(--text-secondary);
+    border-left: 2px solid transparent; transition: all 0.15s;
+  }
+  .nav-item:hover { color: var(--text-primary); background: var(--bg-card); }
+  .nav-item.active {
+    color: var(--text-primary); background: var(--bg-card);
+    border-left-color: var(--accent-red); font-weight: 500;
+  }
+  .nav-icon { width: 14px; height: 14px; opacity: 0.7; flex-shrink: 0; }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .main { padding: 28px 36px 60px; overflow-x: auto; min-width: 0; }
+  .page-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+  }
+  .page-title { font-size: 20px; font-weight: 600; letter-spacing: -0.2px; }
+  .page-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .filter-bar { display: flex; gap: 8px; align-items: center; }
+  select.season-select, select.race-select {
+    background: var(--bg-card); color: var(--text-primary);
+    border: 1px solid var(--border); padding: 7px 28px 7px 12px;
+    border-radius: 6px; font-size: 12px; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238B98A5' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; cursor: pointer;
+  }
+  select.race-select { min-width: 280px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .kpi {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px;
+  }
+  .kpi-label {
+    font-size: 11px; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;
+  }
+  .kpi-value { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; }
+  .card-subtitle { font-size: 11px; color: var(--text-tertiary); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.data th {
+    text-align: left; color: var(--text-tertiary);
+    text-transform: uppercase; font-size: 10px; font-weight: 500;
+    letter-spacing: 0.05em; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  table.data td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data tr:hover td { background: rgba(255,255,255,0.02); }
+  table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data .driver-cell { font-weight: 600; letter-spacing: 0.3px; }
+  table.data .rank-cell { color: var(--text-tertiary); font-variant-numeric: tabular-nums; width: 28px; }
+  .team-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-h-260 { height: 260px; }
+  .chart-h-320 { height: 320px; }
+  .chart-h-400 { height: 400px; }
+  .chart-h-500 { height: 500px; }
+  .radar-wrap { position: relative; width: 100%; max-width: 360px; margin: 0 auto; height: 320px; }
+  .picker { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .picker label { font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
+  .picker select {
+    background: var(--bg-input); color: var(--text-primary);
+    border: 1px solid var(--border); padding: 6px 24px 6px 10px;
+    border-radius: 5px; font-size: 12px; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238B98A5' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center;
+  }
+  .score-bar {
+    background: var(--border); height: 6px; border-radius: 3px;
+    overflow: hidden; width: 80px; display: inline-block; vertical-align: middle; margin-right: 8px;
+  }
+  .score-fill { height: 100%; }
+  .replay-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .replay-btn {
+    background: var(--accent-red); color: white; border: none;
+    padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .replay-btn:hover { background: var(--accent-red-dim); }
+  .replay-btn.secondary { background: var(--bg-card-hover); color: var(--text-primary); }
+  .lap-counter { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .lap-counter strong { color: var(--text-primary); font-size: 14px; font-weight: 600; }
+  input[type="range"] {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 4px; background: var(--border); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; background: var(--accent-red);
+    border-radius: 50%; cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px; background: var(--accent-red);
+    border-radius: 50%; cursor: pointer; border: none;
+  }
+  .page { display: none; }
+  .page.active { display: block; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-tertiary); font-size: 12px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg-page); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">F1</div>
+      <div>
+        <div class="brand-text">Strategy Intelligence</div>
+        <div class="brand-sub">2018 – 2024</div>
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-page="overview">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12v8H2zM2 7h12M5 4v8M11 4v8"/></svg>
+        Season overview
+      </div>
+      <div class="nav-item" data-page="constructor">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12L6 7l3 3 5-7"/></svg>
+        Constructor battle
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">Drivers</div>
+      <div class="nav-item" data-page="dna">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2v12"/></svg>
+        Driver DNA
+      </div>
+      <div class="nav-item" data-page="h2h">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h4M9 8h4M5 5l-2 3 2 3M11 5l2 3-2 3"/></svg>
+        Head-to-head
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">Strategy</div>
+      <div class="nav-item" data-page="circuits">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/></svg>
+        Circuit DNA
+      </div>
+      <div class="nav-item" data-page="replay">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3l8 5-8 5z"/></svg>
+        Race replay
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <section id="page-overview" class="page active">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Season overview</div>
+          <div class="page-subtitle">Champion, standings and performance summary</div>
+        </div>
+        <div class="filter-bar"><select class="season-select" id="season-overview"></select></div>
+      </div>
+      <div class="kpi-grid" id="overview-kpis"></div>
+      <div class="grid-2-1" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Driver standings</div><div class="card-subtitle">Final championship table</div></div></div>
+          <div id="overview-drivers-table"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Constructor standings</div><div class="card-subtitle">Team championship</div></div></div>
+          <div id="overview-teams-table"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Top driver wins all-time</div><div class="card-subtitle">Across the 2018 – 2024 dataset, coloured by their last team</div></div></div>
+        <div class="chart-wrap chart-h-260"><canvas id="chart-alltime-wins" role="img" aria-label="Driver wins">All-time wins.</canvas></div>
+      </div>
+    </section>
+
+    <section id="page-constructor" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Constructor battle</div>
+          <div class="page-subtitle">Championship trajectory race-by-race</div>
+        </div>
+        <div class="filter-bar"><select class="season-select" id="season-constructor"></select></div>
+      </div>
+      <div class="kpi-grid" id="constructor-kpis"></div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Cumulative points by round</div><div class="card-subtitle">Each line is a constructor in their team colour</div></div></div>
+        <div class="chart-wrap chart-h-400"><canvas id="chart-evo" role="img" aria-label="Constructor evolution">Constructor evolution.</canvas></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Reliability index</div><div class="card-subtitle">DNF rate by team</div></div></div>
+          <div class="chart-wrap chart-h-320"><canvas id="chart-reliability" role="img" aria-label="Reliability">Reliability.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Wins distribution</div><div class="card-subtitle">Race wins by team this season</div></div></div>
+          <div class="chart-wrap chart-h-320"><canvas id="chart-wins-share" role="img" aria-label="Wins share">Wins share.</canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="page-dna" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Driver DNA</div>
+          <div class="page-subtitle">Six-axis fingerprint, scaled 0–100 within each season</div>
+        </div>
+        <div class="filter-bar"><select class="season-select" id="season-dna"></select></div>
+      </div>
+      <div class="picker">
+        <label>Compare</label>
+        <select id="dna-driver-1"></select>
+        <label style="margin-left: 16px;">vs</label>
+        <select id="dna-driver-2"></select>
+      </div>
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Performance fingerprint</div><div class="card-subtitle">Higher = better on each axis</div></div></div>
+          <div class="radar-wrap"><canvas id="chart-radar" role="img" aria-label="Driver fingerprint">Driver fingerprint.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Top 10 by overall fingerprint</div><div class="card-subtitle">Average across all six dimensions</div></div></div>
+          <div id="dna-leaderboard"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Stint consistency leaderboard</div><div class="card-subtitle">Average stint stddev — lower is better. Bars coloured by team.</div></div></div>
+        <div class="chart-wrap chart-h-400"><canvas id="chart-consistency" role="img" aria-label="Consistency">Consistency.</canvas></div>
+      </div>
+    </section>
+
+    <section id="page-h2h" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Head-to-head</div>
+          <div class="page-subtitle">Teammate matchups across qualifying, race finishes, and pace</div>
+        </div>
+        <div class="filter-bar"><select class="season-select" id="season-h2h"></select></div>
+      </div>
+      <div id="h2h-pairings"></div>
+    </section>
+
+    <section id="page-circuits" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Circuit DNA</div>
+          <div class="page-subtitle">Track characteristics across the dataset</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Pole-to-win conversion</div><div class="card-subtitle">Higher % means polesitter usually wins</div></div></div>
+          <div class="chart-wrap chart-h-500"><canvas id="chart-pole" role="img" aria-label="Pole conversion">Pole conversion.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div><div class="card-title">Overtaking volume</div><div class="card-subtitle">Average grid → finish position swings</div></div></div>
+          <div class="chart-wrap chart-h-500"><canvas id="chart-overtaking" role="img" aria-label="Overtaking">Overtaking.</canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Tire degradation by circuit</div><div class="card-subtitle">Seconds added per lap of tire age (MEDIUM compound). Hotter colour = harder on tires.</div></div></div>
+        <div class="chart-wrap chart-h-320"><canvas id="chart-tire-deg" role="img" aria-label="Tire degradation">Tire degradation.</canvas></div>
+      </div>
+    </section>
+
+    <section id="page-replay" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Race replay</div>
+          <div class="page-subtitle" id="replay-subtitle">Lap-by-lap position progression</div>
+        </div>
+        <div class="filter-bar">
+          <select class="race-select" id="race-picker"></select>
+        </div>
+      </div>
+      <div class="card">
+        <div class="replay-controls">
+          <button class="replay-btn" id="replay-play">▶ Play</button>
+          <button class="replay-btn secondary" id="replay-reset">↺ Reset</button>
+          <input type="range" id="replay-slider" min="1" max="58" value="1" />
+          <div class="lap-counter">Lap <strong id="replay-lap">1</strong> / <span id="replay-total">58</span></div>
+        </div>
+        <div class="chart-wrap chart-h-500"><canvas id="chart-replay" role="img" aria-label="Race replay">Race replay.</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Current order</div><div class="card-subtitle">Real-time positions at the selected lap</div></div></div>
+        <div id="replay-standings"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* DATA_PLACEHOLDER */
+
+/* ====================================================================
+   TEAM COLOURS — used everywhere
+   ==================================================================== */
+const TEAM_COLORS = {
+  'Red Bull Racing': '#1E5BC6',
+  'Red Bull':        '#1E5BC6',
+  'Mercedes':        '#27F4D2',
+  'Ferrari':         '#E80020',
+  'McLaren':         '#FF8000',
+  'Aston Martin':    '#229971',
+  'Alpine':          '#0093CC',
+  'Williams':        '#64C4FF',
+  'RB':              '#6692FF',
+  'AlphaTauri':      '#5B79B0',
+  'Toro Rosso':      '#5B79B0',
+  'Stake':           '#52E252',
+  'Kick Sauber':     '#52E252',
+  'Alfa Romeo':      '#900000',
+  'Alfa Romeo Racing': '#900000',
+  'Sauber':          '#9B0000',
+  'Haas F1 Team':    '#B6BABD',
+  'Haas':            '#B6BABD',
+  'Racing Point':    '#F596C8',
+  'Renault':         '#FFF500',
+  'Force India':     '#F596C8',
+};
+function teamColor(name) { return TEAM_COLORS[name] || '#8B98A5'; }
+
+/* Build (season, driver_code) → team for accurate colouring across seasons */
+const DT_MAP = {};
+DATA.driver_team_map.forEach(r => {
+  DT_MAP[`${r.season}|${r.driver}`] = r.team;
+});
+function driverTeam(season, driver) { return DT_MAP[`${season}|${driver}`]; }
+function driverColor(season, driver) {
+  const team = driverTeam(season, driver);
+  return team ? teamColor(team) : '#8B98A5';
+}
+/* Best-known team for a driver across the dataset (most-recent season they appeared) */
+const DRIVER_LATEST_TEAM = {};
+DATA.driver_team_map.forEach(r => {
+  const cur = DRIVER_LATEST_TEAM[r.driver];
+  if (!cur || r.season > cur.season) DRIVER_LATEST_TEAM[r.driver] = r;
+});
+function latestDriverColor(driver) {
+  const r = DRIVER_LATEST_TEAM[driver];
+  return r ? teamColor(r.team) : '#8B98A5';
+}
+
+const SEASONS = [...new Set(DATA.season_summary.map(r => r.year))].sort();
+
+Chart.defaults.font.family = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#8B98A5';
+Chart.defaults.borderColor = '#2A3340';
+const charts = {};
+
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    const page = el.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+  });
+});
+
+['season-overview', 'season-constructor', 'season-dna', 'season-h2h'].forEach(id => {
+  const sel = document.getElementById(id);
+  SEASONS.forEach(yr => {
+    const opt = document.createElement('option');
+    opt.value = yr; opt.textContent = yr;
+    sel.appendChild(opt);
+  });
+  sel.value = SEASONS[SEASONS.length - 1];
+});
+
+/* ====================================================================
+   PAGE 1: SEASON OVERVIEW
+   ==================================================================== */
+function renderOverview(season) {
+  season = +season;
+  const summary = DATA.season_summary.find(s => s.year === season);
+  const driverStandings = DATA.driver_standings.filter(s => s.season === season);
+  const teamStandings = DATA.constructor_standings.filter(s => s.season === season);
+
+  const champColor = teamColor(summary.team_champion);
+  document.getElementById('overview-kpis').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Champion</div>
+      <div class="kpi-value" style="color:${champColor}">${summary.driver_champion}</div>
+      <div class="kpi-sub">${Math.round(summary.driver_points)} points</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Constructor</div>
+      <div class="kpi-value" style="color:${champColor}">${summary.team_champion}</div>
+      <div class="kpi-sub">${Math.round(summary.team_points)} points</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Races</div>
+      <div class="kpi-value">${summary.races}</div>
+      <div class="kpi-sub">${summary.circuits} unique circuits</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Drivers</div>
+      <div class="kpi-value">${driverStandings.length}</div>
+      <div class="kpi-sub">on the grid this season</div>
+    </div>`;
+
+  document.getElementById('overview-drivers-table').innerHTML = `<table class="data">
+    <thead><tr><th></th><th>Driver</th><th>Team</th><th class="num">Pts</th><th class="num">W</th><th class="num">P</th></tr></thead>
+    <tbody>${driverStandings.slice(0, 10).map((r, i) => {
+      const c = teamColor(r.team);
+      return `<tr>
+        <td class="rank-cell">${i+1}</td>
+        <td class="driver-cell" style="color:${c}">${r.driver}</td>
+        <td><span class="team-dot" style="background:${c}"></span><span style="color:${c}">${r.team}</span></td>
+        <td class="num">${Math.round(r.points)}</td>
+        <td class="num">${r.wins}</td>
+        <td class="num">${r.podiums}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  document.getElementById('overview-teams-table').innerHTML = `<table class="data">
+    <thead><tr><th></th><th>Team</th><th class="num">Pts</th><th class="num">W</th></tr></thead>
+    <tbody>${teamStandings.map((r, i) => {
+      const c = teamColor(r.team);
+      return `<tr>
+        <td class="rank-cell">${i+1}</td>
+        <td><span class="team-dot" style="background:${c}"></span><span style="color:${c}">${r.team}</span></td>
+        <td class="num">${Math.round(r.points)}</td>
+        <td class="num">${r.wins}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  if (!charts.allTimeWins) {
+    const wins = {};
+    DATA.driver_standings.forEach(r => { wins[r.driver] = (wins[r.driver] || 0) + r.wins; });
+    const top = Object.entries(wins).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 12);
+
+    charts.allTimeWins = new Chart(document.getElementById('chart-alltime-wins'), {
+      type: 'bar',
+      data: {
+        labels: top.map(([k]) => k),
+        datasets: [{
+          label: 'Wins',
+          data: top.map(([, v]) => v),
+          backgroundColor: top.map(([k]) => latestDriverColor(k)),
+          borderRadius: 3, barThickness: 22,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { grid: { color: '#2A3340' }, ticks: { stepSize: 5 } }, x: { grid: { display: false } } },
+      },
+    });
+  }
+}
+document.getElementById('season-overview').addEventListener('change', e => renderOverview(e.target.value));
+
+/* ====================================================================
+   PAGE 2: CONSTRUCTOR BATTLE
+   ==================================================================== */
+function renderConstructor(season) {
+  season = +season;
+  const standings = DATA.constructor_standings.filter(s => s.season === season);
+  const evo = DATA.championship_evo.filter(s => s.year === season);
+  const reliab = DATA.reliability.filter(s => s.season === season);
+
+  const totalWins = standings.reduce((a, s) => a + s.wins, 0);
+  const lead = standings[0];
+  const second = standings[1];
+  const margin = lead && second ? Math.round(lead.points - second.points) : 0;
+  document.getElementById('constructor-kpis').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Champion</div>
+      <div class="kpi-value" style="color:${teamColor(lead?.team)}">${lead?.team || '—'}</div>
+      <div class="kpi-sub">${Math.round(lead?.points || 0)} pts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Margin</div>
+      <div class="kpi-value">${margin}</div>
+      <div class="kpi-sub">over 2nd place</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Wins shared</div>
+      <div class="kpi-value">${totalWins}</div>
+      <div class="kpi-sub">across ${standings.filter(s => s.wins > 0).length} teams</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Most reliable</div>
+      <div class="kpi-value" style="font-size: 16px; color:${teamColor(reliab[0]?.team)}">${reliab[0]?.team || '—'}</div>
+      <div class="kpi-sub">${reliab[0]?.dnf_rate || 0}% DNF</div>
+    </div>`;
+
+  const teams = [...new Set(evo.map(r => r.team))];
+  const rounds = [...new Set(evo.map(r => r.round))].sort((a, b) => a - b);
+  const datasets = teams.map(team => ({
+    label: team,
+    data: rounds.map(rnd => {
+      const found = evo.find(e => e.team === team && e.round === rnd);
+      return found ? Math.round(found.cum_pts) : null;
+    }),
+    borderColor: teamColor(team),
+    backgroundColor: teamColor(team) + '22',
+    borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0.2,
+  })).sort((a, b) => (b.data[b.data.length - 1] || 0) - (a.data[a.data.length - 1] || 0)).slice(0, 8);
+
+  if (charts.evo) charts.evo.destroy();
+  charts.evo = new Chart(document.getElementById('chart-evo'), {
+    type: 'line',
+    data: { labels: rounds.map(r => 'R' + r), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 6 } } },
+      scales: {
+        y: { title: { display: true, text: 'Points', color: '#5A6675' }, grid: { color: '#2A3340' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  if (charts.reliab) charts.reliab.destroy();
+  const reliabSorted = [...reliab].sort((a, b) => a.dnf_rate - b.dnf_rate);
+  charts.reliab = new Chart(document.getElementById('chart-reliability'), {
+    type: 'bar',
+    data: {
+      labels: reliabSorted.map(r => r.team),
+      datasets: [{
+        label: 'DNF %',
+        data: reliabSorted.map(r => r.dnf_rate),
+        backgroundColor: reliabSorted.map(r => teamColor(r.team)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v + '%' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  if (charts.winsShare) charts.winsShare.destroy();
+  const winners = standings.filter(s => s.wins > 0);
+  charts.winsShare = new Chart(document.getElementById('chart-wins-share'), {
+    type: 'doughnut',
+    data: {
+      labels: winners.map(w => w.team),
+      datasets: [{
+        data: winners.map(w => w.wins),
+        backgroundColor: winners.map(w => teamColor(w.team)),
+        borderColor: '#1C232C', borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 8 } } },
+    },
+  });
+}
+document.getElementById('season-constructor').addEventListener('change', e => renderConstructor(e.target.value));
+
+/* ====================================================================
+   PAGE 3: DRIVER DNA
+   ==================================================================== */
+function renderDNA(season) {
+  season = +season;
+  const fps = DATA.fingerprints.filter(f => f.season === season);
+
+  const d1 = document.getElementById('dna-driver-1');
+  const d2 = document.getElementById('dna-driver-2');
+  d1.innerHTML = ''; d2.innerHTML = '';
+  fps.forEach(f => {
+    const opt = `<option value="${f.driver_code}">${f.driver_code} (${f.constructor_name})</option>`;
+    d1.insertAdjacentHTML('beforeend', opt);
+    d2.insertAdjacentHTML('beforeend', opt);
+  });
+  if (fps[0]) d1.value = fps[0].driver_code;
+  if (fps[1]) d2.value = fps[1].driver_code;
+
+  function drawRadar() {
+    const a = fps.find(f => f.driver_code === d1.value);
+    const b = fps.find(f => f.driver_code === d2.value);
+    if (!a || !b) return;
+    const labels = ['Race pace', 'Consistency', 'Quali pace', 'Racecraft', 'Tire mgmt', 'Wet perf'];
+    const dataA = [a.score_race_pace, a.score_consistency, a.score_quali_pace, a.score_racecraft, a.score_tire_mgmt, a.score_wet_perf].map(v => v ?? 0);
+    const dataB = [b.score_race_pace, b.score_consistency, b.score_quali_pace, b.score_racecraft, b.score_tire_mgmt, b.score_wet_perf].map(v => v ?? 0);
+    const cA = teamColor(a.constructor_name);
+    const cB = teamColor(b.constructor_name);
+
+    if (charts.radar) charts.radar.destroy();
+    charts.radar = new Chart(document.getElementById('chart-radar'), {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          { label: a.driver_code, data: dataA, borderColor: cA, backgroundColor: cA + '33', pointBackgroundColor: cA, borderWidth: 2 },
+          { label: b.driver_code, data: dataB, borderColor: cB, backgroundColor: cB + '33', pointBackgroundColor: cB, borderWidth: 2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 12 } } },
+        scales: {
+          r: {
+            min: 0, max: 100,
+            angleLines: { color: '#2A3340' }, grid: { color: '#2A3340' },
+            pointLabels: { color: '#8B98A5', font: { size: 11 } },
+            ticks: { display: false, stepSize: 25 },
+          },
+        },
+      },
+    });
+  }
+  d1.addEventListener('change', drawRadar);
+  d2.addEventListener('change', drawRadar);
+  drawRadar();
+
+  const sorted = [...fps].filter(f => f.score_overall != null).sort((a, b) => b.score_overall - a.score_overall);
+  document.getElementById('dna-leaderboard').innerHTML = `<table class="data"><tbody>${sorted.slice(0, 10).map((f, i) => {
+    const c = teamColor(f.constructor_name);
+    return `<tr>
+      <td class="rank-cell">${i+1}</td>
+      <td class="driver-cell" style="color:${c}">${f.driver_code}</td>
+      <td><span class="team-dot" style="background:${c}"></span><span style="color:${c}">${f.constructor_name}</span></td>
+      <td>
+        <span class="score-bar"><span class="score-fill" style="width:${f.score_overall}%; background:${c}"></span></span>
+        <span class="num" style="color: var(--text-secondary);">${(f.score_overall || 0).toFixed(0)}</span>
+      </td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+
+  const cons = DATA.consistency.filter(c => c.season === season).slice(0, 15);
+  if (charts.consistency) charts.consistency.destroy();
+  charts.consistency = new Chart(document.getElementById('chart-consistency'), {
+    type: 'bar',
+    data: {
+      labels: cons.map(c => c.driver),
+      datasets: [{
+        label: 'Stint stddev',
+        data: cons.map(c => c.score),
+        backgroundColor: cons.map(c => teamColor(c.team)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v.toFixed(2) + 's' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+}
+document.getElementById('season-dna').addEventListener('change', e => renderDNA(e.target.value));
+
+/* ====================================================================
+   PAGE 4: HEAD-TO-HEAD
+   ==================================================================== */
+function renderH2H(season) {
+  season = +season;
+  const pairings = DATA.h2h.filter(h => h.season === season);
+  const container = document.getElementById('h2h-pairings');
+  container.innerHTML = pairings.map(p => {
+    const c = teamColor(p.constructor_name);
+    const total = p.race_a_ahead + p.race_b_ahead || 1;
+    const aPct = (p.race_a_ahead / total) * 100;
+    const totalQ = p.quali_a_ahead + p.quali_b_ahead || 1;
+    const aQPct = (p.quali_a_ahead / totalQ) * 100;
+    const paceGap = p.avg_race_pace_gap_a_minus_b;
+
+    return `
+      <div class="card" style="margin-bottom: 12px; border-left: 3px solid ${c};">
+        <div class="card-header">
+          <div>
+            <div class="card-title" style="color:${c}">${p.constructor_name}</div>
+            <div class="card-subtitle">${p.races_compared} races compared</div>
+          </div>
+          <div style="font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">
+            <span style="color:${aPct >= 50 ? c : 'var(--text-tertiary)'}">${p.driver_a_code}</span>
+            <span style="color: var(--text-tertiary); margin: 0 8px;">vs</span>
+            <span style="color:${aPct < 50 ? c : 'var(--text-tertiary)'}">${p.driver_b_code}</span>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Race finishes</div>
+            <div style="display:flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+              <div style="background: ${c}; width: ${aPct}%; display:flex; align-items:center; padding-left: 8px; font-size: 11px; font-weight: 600; color: white;">${p.race_a_ahead}</div>
+              <div style="background: var(--bg-card-hover); width: ${100-aPct}%; display:flex; align-items:center; justify-content:flex-end; padding-right: 8px; font-size: 11px; font-weight: 600;">${p.race_b_ahead}</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Qualifying</div>
+            <div style="display:flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+              <div style="background: ${c}aa; width: ${aQPct}%; display:flex; align-items:center; padding-left: 8px; font-size: 11px; font-weight: 600; color: white;">${p.quali_a_ahead}</div>
+              <div style="background: var(--bg-card-hover); width: ${100-aQPct}%; display:flex; align-items:center; justify-content:flex-end; padding-right: 8px; font-size: 11px; font-weight: 600;">${p.quali_b_ahead}</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; gap: 24px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+          <div>
+            <div style="font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em;">Pace gap</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px;">${paceGap !== null && paceGap !== undefined ? (paceGap > 0 ? '+' : '') + paceGap.toFixed(3) + 's' : '—'}</div>
+          </div>
+          <div>
+            <div style="font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em;">DNFs</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px;">${p.dnfs_a} / ${p.dnfs_b}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('') || '<div class="empty-state">No matchups for this season.</div>';
+}
+document.getElementById('season-h2h').addEventListener('change', e => renderH2H(e.target.value));
+
+/* ====================================================================
+   PAGE 5: CIRCUIT DNA — circuits don't have team colours,
+   so use a categorical accent palette mapped to position in ranking.
+   ==================================================================== */
+const POLE_GRADIENT = ['#27F4D2','#1FB55A','#F4B400','#FF8000','#E10600','#900000'];
+const OVERTAKE_GRADIENT = ['#900000','#E10600','#FF8000','#F4B400','#1FB55A','#27F4D2'];
+const TIRE_GRADIENT = ['#FFEB6B','#FAD25C','#F4B400','#FF8000','#E10600','#900000'];
+
+function gradientFor(value, min, max, stops) {
+  const t = max === min ? 0 : (value - min) / (max - min);
+  const idx = Math.min(stops.length - 1, Math.floor(t * stops.length));
+  return stops[idx];
+}
+
+function renderCircuits() {
+  const pole = [...DATA.pole_to_win].sort((a, b) => b.conversion_pct - a.conversion_pct).slice(0, 18);
+  const ot = [...DATA.overtaking].sort((a, b) => b.swing - a.swing).slice(0, 18);
+  const tireDeg = [...DATA.tire_deg].filter(t => t.deg_per_lap !== null).slice(0, 15);
+
+  const poleVals = pole.map(p => p.conversion_pct);
+  const polMin = Math.min(...poleVals), polMax = Math.max(...poleVals);
+  if (charts.pole) charts.pole.destroy();
+  charts.pole = new Chart(document.getElementById('chart-pole'), {
+    type: 'bar',
+    data: {
+      labels: pole.map(p => p.circuit),
+      datasets: [{
+        label: 'Conversion %',
+        data: poleVals,
+        backgroundColor: poleVals.map(v => gradientFor(v, polMin, polMax, POLE_GRADIENT)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v + '%' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  const otVals = ot.map(o => o.swing);
+  const otMin = Math.min(...otVals), otMax = Math.max(...otVals);
+  if (charts.overtaking) charts.overtaking.destroy();
+  charts.overtaking = new Chart(document.getElementById('chart-overtaking'), {
+    type: 'bar',
+    data: {
+      labels: ot.map(o => o.circuit),
+      datasets: [{
+        label: 'Position swings',
+        data: otVals,
+        backgroundColor: otVals.map(v => gradientFor(v, otMin, otMax, OVERTAKE_GRADIENT)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: '#2A3340' } }, y: { grid: { display: false } } },
+    },
+  });
+
+  const tdVals = tireDeg.map(t => t.deg_per_lap);
+  const tdMin = Math.min(...tdVals), tdMax = Math.max(...tdVals);
+  if (charts.tireDeg) charts.tireDeg.destroy();
+  charts.tireDeg = new Chart(document.getElementById('chart-tire-deg'), {
+    type: 'bar',
+    data: {
+      labels: tireDeg.map(t => t.circuit_name),
+      datasets: [{
+        label: 'Degradation (s/lap)',
+        data: tdVals,
+        backgroundColor: tdVals.map(v => gradientFor(v, tdMin, tdMax, TIRE_GRADIENT)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: v => v.toFixed(2) + 's' }, grid: { color: '#2A3340' } },
+      },
+    },
+  });
+}
+
+/* ====================================================================
+   PAGE 6: RACE REPLAY — picker + per-race rendering
+   ==================================================================== */
+
+/* Build sparse lookup: race_id → { driver: [[lap, pos], ...] } */
+const RACE_POS_LOOKUP = {};
+DATA.race_positions.forEach(r => {
+  RACE_POS_LOOKUP[r.race_id] = RACE_POS_LOOKUP[r.race_id] || {};
+  RACE_POS_LOOKUP[r.race_id][r.driver] = r.laps;
+});
+
+function renderReplay() {
+  // Populate race picker
+  const picker = document.getElementById('race-picker');
+  picker.innerHTML = '';
+  DATA.race_catalog.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.race_id;
+    opt.textContent = `${r.year} · ${r.event_name}`;
+    picker.appendChild(opt);
+  });
+
+  // Default to the most recent race that has data
+  const defaultRace = DATA.race_catalog.find(r => RACE_POS_LOOKUP[r.race_id]);
+  if (defaultRace) {
+    picker.value = defaultRace.race_id;
+    loadRace(defaultRace.race_id);
+  }
+
+  picker.addEventListener('change', e => loadRace(+e.target.value));
+}
+
+let replayState = { interval: null, slider: null, max: 0, driverPosByLap: {}, season: null, drivers: [] };
+
+function loadRace(raceId) {
+  const meta = DATA.race_catalog.find(r => r.race_id === raceId);
+  if (!meta) return;
+  document.getElementById('replay-subtitle').textContent =
+    `${meta.year} · ${meta.event_name} · ${meta.circuit_name}`;
+
+  const driverData = RACE_POS_LOOKUP[raceId] || {};
+  const drivers = Object.keys(driverData);
+  if (drivers.length === 0) {
+    document.getElementById('replay-standings').innerHTML = '<div class="empty-state">No lap data for this race.</div>';
+    return;
+  }
+
+  // Find max lap recorded
+  let maxLap = 0;
+  drivers.forEach(d => {
+    driverData[d].forEach(([lap]) => { if (lap > maxLap) maxLap = lap; });
+  });
+
+  // Build position-by-lap matrix (sparse → dense)
+  const posByDriver = {};
+  drivers.forEach(d => {
+    posByDriver[d] = Array(maxLap + 1).fill(null);
+    driverData[d].forEach(([lap, pos]) => { posByDriver[d][lap] = pos; });
+  });
+
+  replayState = { ...replayState, max: maxLap, driverPosByLap: posByDriver, season: meta.year, drivers };
+
+  document.getElementById('replay-slider').max = maxLap;
+  document.getElementById('replay-slider').value = 1;
+  document.getElementById('replay-total').textContent = maxLap;
+  document.getElementById('replay-lap').textContent = 1;
+
+  // Build chart
+  if (charts.replay) charts.replay.destroy();
+  charts.replay = new Chart(document.getElementById('chart-replay'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length: maxLap}, (_, i) => 'L' + (i + 1)),
+      datasets: drivers.map(d => ({
+        label: d,
+        data: posByDriver[d].slice(1),
+        borderColor: driverColor(meta.year, d),
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        pointRadius: 0, pointHoverRadius: 3, tension: 0,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 4, font: { size: 10 } } } },
+      scales: {
+        y: { reverse: true, min: 0.5, max: 20.5, ticks: { stepSize: 1, callback: v => 'P' + v },
+             title: { display: true, text: 'Position', color: '#5A6675' }, grid: { color: '#2A3340' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  updateLap(1);
+}
+
+function updateLap(lap) {
+  document.getElementById('replay-lap').textContent = lap;
+  const { drivers, driverPosByLap, season } = replayState;
+  const atLap = drivers.map(d => ({ driver: d, position: driverPosByLap[d][lap] }))
+    .filter(d => d.position !== null)
+    .sort((a, b) => a.position - b.position);
+
+  document.getElementById('replay-standings').innerHTML = `<table class="data"><tbody>${
+    atLap.map(d => {
+      const c = driverColor(season, d.driver);
+      const team = driverTeam(season, d.driver);
+      return `<tr>
+        <td class="rank-cell">P${d.position}</td>
+        <td class="driver-cell" style="color:${c}">${d.driver}</td>
+        <td><span class="team-dot" style="background:${c}"></span><span style="color:${c}; font-size: 11px;">${team || ''}</span></td>
+      </tr>`;
+    }).join('')
+  }</tbody></table>`;
+}
+
+document.getElementById('replay-slider').addEventListener('input', e => updateLap(+e.target.value));
+
+document.getElementById('replay-play').addEventListener('click', () => {
+  if (replayState.interval) {
+    clearInterval(replayState.interval);
+    replayState.interval = null;
+    document.getElementById('replay-play').textContent = '▶ Play';
+    return;
+  }
+  document.getElementById('replay-play').textContent = '⏸ Pause';
+  const slider = document.getElementById('replay-slider');
+  replayState.interval = setInterval(() => {
+    let cur = +slider.value;
+    if (cur >= replayState.max) {
+      clearInterval(replayState.interval);
+      replayState.interval = null;
+      document.getElementById('replay-play').textContent = '▶ Play';
+      return;
+    }
+    slider.value = cur + 1;
+    updateLap(cur + 1);
+  }, 200);
+});
+
+document.getElementById('replay-reset').addEventListener('click', () => {
+  if (replayState.interval) {
+    clearInterval(replayState.interval);
+    replayState.interval = null;
+    document.getElementById('replay-play').textContent = '▶ Play';
+  }
+  document.getElementById('replay-slider').value = 1;
+  updateLap(1);
+});
+
+/* ====================================================================
+   INIT
+   ==================================================================== */
+renderOverview(SEASONS[SEASONS.length - 1]);
+renderConstructor(SEASONS[SEASONS.length - 1]);
+renderDNA(SEASONS[SEASONS.length - 1]);
+renderH2H(SEASONS[SEASONS.length - 1]);
+renderCircuits();
+renderReplay();
+</script>
+
+</body>
+</html>

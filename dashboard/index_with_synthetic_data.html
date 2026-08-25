@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 Strategy Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  /* ====================================================================
+     F1 Strategy Intelligence — design system
+     Palette: Pit lane black + signal red + cool steel.
+     Typography: Inter (system fallback).
+     ==================================================================== */
+
+  :root {
+    --bg-page:        #0E1116;
+    --bg-elevated:    #161B22;
+    --bg-card:        #1C232C;
+    --bg-card-hover:  #232B36;
+    --bg-input:       #0B0E13;
+
+    --border:         #2A3340;
+    --border-strong:  #3A4554;
+
+    --text-primary:   #E6EDF3;
+    --text-secondary: #8B98A5;
+    --text-tertiary:  #5A6675;
+
+    --accent-red:     #E10600;       /* F1 brand red */
+    --accent-red-dim: #B30500;
+    --accent-amber:   #F4B400;
+    --accent-green:   #1FB55A;
+    --accent-blue:    #4C8DFF;
+    --accent-purple:  #B488FF;
+
+    /* Team colors — modern palette */
+    --t-redbull:      #1E3A8A;
+    --t-mercedes:     #00D2BE;
+    --t-ferrari:      #DC143C;
+    --t-mclaren:      #FF8700;
+    --t-aston:        #006F62;
+    --t-alpine:       #0090FF;
+    --t-williams:     #6692FF;
+    --t-rb:           #4781D7;
+    --t-stake:        #52E252;
+    --t-haas:         #B6BABD;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Layout shell ---------- */
+
+  .app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    background: var(--bg-elevated);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky; top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand-mark {
+    width: 32px; height: 32px;
+    background: var(--accent-red);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; letter-spacing: -0.5px;
+    color: white;
+  }
+  .brand-text {
+    font-size: 13px; font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+
+  .nav-section {
+    padding: 16px 0 8px;
+  }
+  .nav-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    padding: 0 20px 8px;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-item:hover {
+    color: var(--text-primary);
+    background: var(--bg-card);
+  }
+  .nav-item.active {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-left-color: var(--accent-red);
+    font-weight: 500;
+  }
+  .nav-icon {
+    width: 14px; height: 14px;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  /* ---------- Main panel ---------- */
+
+  .main {
+    padding: 28px 36px 60px;
+    overflow-x: auto;
+    min-width: 0;
+  }
+
+  .page-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .page-title {
+    font-size: 20px; font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+  }
+  .page-subtitle {
+    font-size: 13px; color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  /* ---------- Filter bar (global slicers) ---------- */
+
+  .filter-bar {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .filter-pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-pill:hover { background: var(--bg-card-hover); border-color: var(--border-strong); }
+
+  select.season-select {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 7px 28px 7px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238B98A5' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+  }
+
+  /* ---------- KPI cards ---------- */
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+  }
+  .kpi-accent {
+    color: var(--accent-red);
+  }
+
+  /* ---------- Card containers ---------- */
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--text-primary);
+  }
+  .card-subtitle {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+
+  /* ---------- Tables ---------- */
+
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.data th {
+    text-align: left;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.data td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data tr:hover td { background: rgba(255,255,255,0.02); }
+  table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data .driver-cell { font-weight: 600; letter-spacing: 0.3px; }
+  table.data .rank-cell {
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    width: 28px;
+  }
+
+  /* Team color dots */
+  .team-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  /* ---------- Charts ---------- */
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+  .chart-h-200 { height: 200px; }
+  .chart-h-260 { height: 260px; }
+  .chart-h-320 { height: 320px; }
+  .chart-h-400 { height: 400px; }
+
+  /* ---------- Radar chart wrapper ---------- */
+
+  .radar-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    height: 320px;
+  }
+
+  /* ---------- Driver compare picker ---------- */
+
+  .picker {
+    display: flex; gap: 8px; align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .picker label {
+    font-size: 11px; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .picker select {
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    padding: 6px 24px 6px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%238B98A5' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+
+  /* ---------- Bar fills (positions, scores) ---------- */
+
+  .score-bar {
+    background: var(--border);
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    width: 80px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  .score-fill {
+    background: var(--accent-red);
+    height: 100%;
+  }
+
+  /* ---------- Live mode replay ---------- */
+
+  .replay-controls {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .replay-btn {
+    background: var(--accent-red);
+    color: white;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .replay-btn:hover { background: var(--accent-red-dim); }
+  .replay-btn.secondary {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  .lap-counter {
+    font-size: 13px; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .lap-counter strong {
+    color: var(--text-primary);
+    font-size: 14px; font-weight: 600;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent-red);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--accent-red);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+
+  /* ---------- Pages display ---------- */
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ---------- Tooltip ---------- */
+  .badge {
+    display: inline-block;
+    background: var(--bg-card-hover);
+    color: var(--text-secondary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 6px;
+  }
+  .badge.win { background: rgba(31,181,90,0.15); color: var(--accent-green); }
+  .badge.podium { background: rgba(244,180,0,0.15); color: var(--accent-amber); }
+
+  /* ---------- Loading + states ---------- */
+  .empty-state {
+    text-align: center; padding: 40px 20px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  /* ---------- Scrollbar styling ---------- */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg-page); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">F1</div>
+      <div>
+        <div class="brand-text">Strategy Intelligence</div>
+        <div class="brand-sub">2018 – 2024</div>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-page="overview">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v8H2z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 7h12M5 4v8M11 4v8" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        Season overview
+      </div>
+      <div class="nav-item" data-page="constructor">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12L6 7l3 3 5-7"/></svg>
+        Constructor battle
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Drivers</div>
+      <div class="nav-item" data-page="dna">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2v12"/></svg>
+        Driver DNA
+      </div>
+      <div class="nav-item" data-page="h2h">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h4M9 8h4M5 5l-2 3 2 3M11 5l2 3-2 3"/></svg>
+        Head-to-head
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Strategy</div>
+      <div class="nav-item" data-page="circuits">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8a6 6 0 1 1 12 0 6 6 0 0 1-12 0z"/><path d="M5 8a3 3 0 1 0 6 0 3 3 0 0 0-6 0z"/></svg>
+        Circuit DNA
+      </div>
+      <div class="nav-item" data-page="replay">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3l8 5-8 5z"/></svg>
+        Race replay
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main panel -->
+  <main class="main">
+
+    <!-- ========== PAGE: SEASON OVERVIEW ========== -->
+    <section id="page-overview" class="page active">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Season overview</div>
+          <div class="page-subtitle">Champion, standings and performance summary</div>
+        </div>
+        <div class="filter-bar">
+          <select class="season-select" id="season-overview"></select>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="overview-kpis"></div>
+
+      <div class="grid-2-1" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Driver standings</div>
+              <div class="card-subtitle">Final championship table</div>
+            </div>
+          </div>
+          <div id="overview-drivers-table"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Constructor standings</div>
+              <div class="card-subtitle">Team championship</div>
+            </div>
+          </div>
+          <div id="overview-teams-table"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Top driver wins all-time</div>
+            <div class="card-subtitle">Across the 2018 – 2024 dataset</div>
+          </div>
+        </div>
+        <div class="chart-wrap chart-h-260"><canvas id="chart-alltime-wins"
+          role="img" aria-label="Bar chart of total race wins per driver">Top driver wins.</canvas></div>
+      </div>
+    </section>
+
+    <!-- ========== PAGE: CONSTRUCTOR BATTLE ========== -->
+    <section id="page-constructor" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Constructor battle</div>
+          <div class="page-subtitle">Championship trajectory race-by-race</div>
+        </div>
+        <div class="filter-bar">
+          <select class="season-select" id="season-constructor"></select>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="constructor-kpis"></div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Cumulative points by round</div>
+            <div class="card-subtitle">Each line is a constructor — read left to right to see the title fight unfold</div>
+          </div>
+        </div>
+        <div class="chart-wrap chart-h-400"><canvas id="chart-evo"
+          role="img" aria-label="Line chart of cumulative constructor points by round">Constructor evolution.</canvas></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Reliability index</div>
+              <div class="card-subtitle">DNF rate by team</div>
+            </div>
+          </div>
+          <div class="chart-wrap chart-h-320"><canvas id="chart-reliability"
+            role="img" aria-label="Horizontal bar chart of DNF rates">Reliability.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Wins distribution</div>
+              <div class="card-subtitle">Race wins by team this season</div>
+            </div>
+          </div>
+          <div class="chart-wrap chart-h-320"><canvas id="chart-wins-share"
+            role="img" aria-label="Doughnut chart of race wins by team">Wins share.</canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== PAGE: DRIVER DNA ========== -->
+    <section id="page-dna" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Driver DNA</div>
+          <div class="page-subtitle">Six-axis fingerprint, scaled 0–100 within each season</div>
+        </div>
+        <div class="filter-bar">
+          <select class="season-select" id="season-dna"></select>
+        </div>
+      </div>
+
+      <div class="picker">
+        <label>Compare</label>
+        <select id="dna-driver-1"></select>
+        <label style="margin-left: 16px;">vs</label>
+        <select id="dna-driver-2"></select>
+      </div>
+
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Performance fingerprint</div>
+              <div class="card-subtitle">Higher = better on each axis</div>
+            </div>
+          </div>
+          <div class="radar-wrap"><canvas id="chart-radar"
+            role="img" aria-label="Radar chart comparing driver performance dimensions">Driver fingerprint comparison.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Top 10 by overall fingerprint</div>
+              <div class="card-subtitle">Average across all six dimensions</div>
+            </div>
+          </div>
+          <div id="dna-leaderboard"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Stint consistency leaderboard</div>
+            <div class="card-subtitle">Average stint stddev — lower = more consistent</div>
+          </div>
+        </div>
+        <div class="chart-wrap chart-h-320"><canvas id="chart-consistency"
+          role="img" aria-label="Horizontal bar chart of driver consistency scores">Driver consistency.</canvas></div>
+      </div>
+    </section>
+
+    <!-- ========== PAGE: HEAD-TO-HEAD ========== -->
+    <section id="page-h2h" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Head-to-head</div>
+          <div class="page-subtitle">Teammate matchups across qualifying, race finishes, and pace</div>
+        </div>
+        <div class="filter-bar">
+          <select class="season-select" id="season-h2h"></select>
+        </div>
+      </div>
+
+      <div id="h2h-pairings"></div>
+    </section>
+
+    <!-- ========== PAGE: CIRCUIT DNA ========== -->
+    <section id="page-circuits" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Circuit DNA</div>
+          <div class="page-subtitle">Track characteristics across the dataset</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Pole-to-win conversion</div>
+              <div class="card-subtitle">Higher = the polesitter usually wins here</div>
+            </div>
+          </div>
+          <div class="chart-wrap chart-h-400"><canvas id="chart-pole"
+            role="img" aria-label="Horizontal bar chart of pole-to-win percentages">Pole conversion.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Overtaking volume</div>
+              <div class="card-subtitle">Average grid → finish position swings</div>
+            </div>
+          </div>
+          <div class="chart-wrap chart-h-400"><canvas id="chart-overtaking"
+            role="img" aria-label="Horizontal bar chart of overtaking volume by circuit">Overtaking by circuit.</canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Tire degradation by circuit</div>
+            <div class="card-subtitle">Seconds added per lap of tire age (MEDIUM compound)</div>
+          </div>
+        </div>
+        <div class="chart-wrap chart-h-320"><canvas id="chart-tire-deg"
+          role="img" aria-label="Horizontal bar chart of tire degradation rates">Tire degradation.</canvas></div>
+      </div>
+    </section>
+
+    <!-- ========== PAGE: RACE REPLAY ========== -->
+    <section id="page-replay" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Race replay — 2021 Abu Dhabi GP</div>
+          <div class="page-subtitle">The race that decided the championship</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="replay-controls">
+          <button class="replay-btn" id="replay-play">▶ Play</button>
+          <button class="replay-btn secondary" id="replay-reset">↺ Reset</button>
+          <input type="range" id="replay-slider" min="1" max="58" value="1" />
+          <div class="lap-counter">Lap <strong id="replay-lap">1</strong> / 58</div>
+        </div>
+        <div class="chart-wrap chart-h-400"><canvas id="chart-replay"
+          role="img" aria-label="Position progression chart for the 2021 Abu Dhabi GP">Race replay.</canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Current order</div>
+            <div class="card-subtitle">Real-time positions at the selected lap</div>
+          </div>
+        </div>
+        <div id="replay-standings"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const DATA = {"headline": {"seasons": 4, "races": 73, "circuits": 6, "unique_drivers": 10, "total_laps": 35000, "valid_race_laps": 35000, "total_pit_stops": 720}, "season_summary": [{"year": 2022, "driver_champion": "LEC", "driver_points": 282.0, "team_champion": "Aston Martin", "team_points": 494.0, "races": 24, "circuits": 6}, {"year": 2023, "driver_champion": "SAI", "driver_points": 344.0, "team_champion": "Ferrari", "team_points": 551.0, "races": 24, "circuits": 6}, {"year": 2024, "driver_champion": "SAI", "driver_points": 322.0, "team_champion": "Ferrari", "team_points": 568.0, "races": 24, "circuits": 6}], "driver_standings": [{"season": 2022, "driver": "LEC", "team": "Ferrari", "points": 282.0, "wins": 4, "podiums": 11, "poles": 4}, {"season": 2022, "driver": "VER", "team": "Red Bull Racing", "points": 262.0, "wins": 4, "podiums": 7, "poles": 1}, {"season": 2022, "driver": "HAM", "team": "Mercedes", "points": 248.0, "wins": 2, "podiums": 6, "poles": 2}, {"season": 2022, "driver": "STR", "team": "Aston Martin", "points": 248.0, "wins": 2, "podiums": 7, "poles": 1}, {"season": 2022, "driver": "ALO", "team": "Aston Martin", "points": 246.0, "wins": 4, "podiums": 9, "poles": 3}, {"season": 2022, "driver": "PIA", "team": "McLaren", "points": 229.0, "wins": 3, "podiums": 8, "poles": 5}, {"season": 2022, "driver": "PER", "team": "Red Bull Racing", "points": 209.0, "wins": 1, "podiums": 6, "poles": 3}, {"season": 2022, "driver": "SAI", "team": "Ferrari", "points": 194.0, "wins": 4, "podiums": 6, "poles": 2}, {"season": 2022, "driver": "NOR", "team": "McLaren", "points": 161.0, "wins": 3, "podiums": 5, "poles": 2}, {"season": 2022, "driver": "RUS", "team": "Mercedes", "points": 149.0, "wins": 2, "podiums": 2, "poles": 1}, {"season": 2023, "driver": "SAI", "team": "Ferrari", "points": 344.0, "wins": 5, "podiums": 11, "poles": 7}, {"season": 2023, "driver": "NOR", "team": "McLaren", "points": 279.0, "wins": 4, "podiums": 10, "poles": 3}, {"season": 2023, "driver": "PER", "team": "Red Bull Racing", "points": 262.0, "wins": 5, "podiums": 10, "poles": 3}, {"season": 2023, "driver": "ALO", "team": "Aston Martin", "points": 240.0, "wins": 1, "podiums": 6, "poles": 4}, {"season": 2023, "driver": "RUS", "team": "Mercedes", "points": 232.0, "wins": 2, "podiums": 6, "poles": 1}, {"season": 2023, "driver": "HAM", "team": "Mercedes", "points": 224.0, "wins": 3, "podiums": 7, "poles": 1}, {"season": 2023, "driver": "LEC", "team": "Ferrari", "points": 207.0, "wins": 1, "podiums": 4, "poles": 0}, {"season": 2023, "driver": "STR", "team": "Aston Martin", "points": 200.0, "wins": 1, "podiums": 9, "poles": 2}, {"season": 2023, "driver": "PIA", "team": "McLaren", "points": 186.0, "wins": 3, "podiums": 5, "poles": 2}, {"season": 2023, "driver": "VER", "team": "Red Bull Racing", "points": 117.0, "wins": 0, "podiums": 2, "poles": 1}, {"season": 2024, "driver": "SAI", "team": "Ferrari", "points": 322.0, "wins": 3, "podiums": 9, "poles": 1}, {"season": 2024, "driver": "PIA", "team": "McLaren", "points": 299.0, "wins": 4, "podiums": 10, "poles": 4}, {"season": 2024, "driver": "PER", "team": "Red Bull Racing", "points": 256.0, "wins": 3, "podiums": 9, "poles": 5}, {"season": 2024, "driver": "LEC", "team": "Ferrari", "points": 246.0, "wins": 4, "podiums": 9, "poles": 4}, {"season": 2024, "driver": "RUS", "team": "Mercedes", "points": 245.0, "wins": 5, "podiums": 7, "poles": 1}, {"season": 2024, "driver": "NOR", "team": "McLaren", "points": 232.0, "wins": 3, "podiums": 6, "poles": 1}, {"season": 2024, "driver": "HAM", "team": "Mercedes", "points": 225.0, "wins": 1, "podiums": 6, "poles": 3}, {"season": 2024, "driver": "VER", "team": "Red Bull Racing", "points": 218.0, "wins": 2, "podiums": 7, "poles": 1}, {"season": 2024, "driver": "ALO", "team": "Aston Martin", "points": 208.0, "wins": 3, "podiums": 5, "poles": 2}, {"season": 2024, "driver": "STR", "team": "Aston Martin", "points": 179.0, "wins": 2, "podiums": 5, "poles": 2}], "constructor_standings": [{"season": 2022, "team": "Aston Martin", "points": 494.0, "wins": 6, "podiums": 16}, {"season": 2022, "team": "Ferrari", "points": 476.0, "wins": 8, "podiums": 17}, {"season": 2022, "team": "Red Bull Racing", "points": 471.0, "wins": 5, "podiums": 13}, {"season": 2022, "team": "Mercedes", "points": 397.0, "wins": 4, "podiums": 8}, {"season": 2022, "team": "McLaren", "points": 390.0, "wins": 6, "podiums": 13}, {"season": 2023, "team": "Ferrari", "points": 551.0, "wins": 6, "podiums": 15}, {"season": 2023, "team": "McLaren", "points": 465.0, "wins": 7, "podiums": 15}, {"season": 2023, "team": "Mercedes", "points": 456.0, "wins": 5, "podiums": 13}, {"season": 2023, "team": "Aston Martin", "points": 440.0, "wins": 2, "podiums": 15}, {"season": 2023, "team": "Red Bull Racing", "points": 379.0, "wins": 5, "podiums": 12}, {"season": 2024, "team": "Ferrari", "points": 568.0, "wins": 7, "podiums": 18}, {"season": 2024, "team": "McLaren", "points": 531.0, "wins": 7, "podiums": 16}, {"season": 2024, "team": "Red Bull Racing", "points": 474.0, "wins": 5, "podiums": 16}, {"season": 2024, "team": "Mercedes", "points": 470.0, "wins": 6, "podiums": 13}, {"season": 2024, "team": "Aston Martin", "points": 387.0, "wins": 5, "podiums": 10}], "championship_evo": [{"year": 2022, "round": 1, "team": "Ferrari", "cum_pts": 40.0}, {"year": 2022, "round": 1, "team": "McLaren", "cum_pts": 31.0}, {"year": 2022, "round": 1, "team": "Aston Martin", "cum_pts": 20.0}, {"year": 2022, "round": 1, "team": "Mercedes", "cum_pts": 8.0}, {"year": 2022, "round": 1, "team": "Red Bull Racing", "cum_pts": 2.0}, {"year": 2022, "round": 2, "team": "Ferrari", "cum_pts": 57.0}, {"year": 2022, "round": 2, "team": "Red Bull Racing", "cum_pts": 39.0}, {"year": 2022, "round": 2, "team": "Aston Martin", "cum_pts": 37.0}, {"year": 2022, "round": 2, "team": "McLaren", "cum_pts": 36.0}, {"year": 2022, "round": 2, "team": "Mercedes", "cum_pts": 8.0}, {"year": 2022, "round": 3, "team": "Ferrari", "cum_pts": 80.0}, {"year": 2022, "round": 3, "team": "Red Bull Racing", "cum_pts": 64.0}, {"year": 2022, "round": 3, "team": "McLaren", "cum_pts": 61.0}, {"year": 2022, "round": 3, "team": "Aston Martin", "cum_pts": 60.0}, {"year": 2022, "round": 3, "team": "Mercedes", "cum_pts": 19.0}, {"year": 2022, "round": 4, "team": "Ferrari", "cum_pts": 97.0}, {"year": 2022, "round": 4, "team": "Aston Martin", "cum_pts": 80.0}, {"year": 2022, "round": 4, "team": "Red Bull Racing", "cum_pts": 75.0}, {"year": 2022, "round": 4, "team": "McLaren", "cum_pts": 61.0}, {"year": 2022, "round": 4, "team": "Mercedes", "cum_pts": 44.0}, {"year": 2022, "round": 5, "team": "Red Bull Racing", "cum_pts": 118.0}, {"year": 2022, "round": 5, "team": "Ferrari", "cum_pts": 114.0}, {"year": 2022, "round": 5, "team": "McLaren", "cum_pts": 84.0}, {"year": 2022, "round": 5, "team": "Aston Martin", "cum_pts": 82.0}, {"year": 2022, "round": 5, "team": "Mercedes", "cum_pts": 54.0}, {"year": 2022, "round": 6, "team": "Red Bull Racing", "cum_pts": 131.0}, {"year": 2022, "round": 6, "team": "Ferrari", "cum_pts": 124.0}, {"year": 2022, "round": 6, "team": "Aston Martin", "cum_pts": 119.0}, {"year": 2022, "round": 6, "team": "McLaren", "cum_pts": 84.0}, {"year": 2022, "round": 6, "team": "Mercedes", "cum_pts": 54.0}, {"year": 2022, "round": 7, "team": "Red Bull Racing", "cum_pts": 150.0}, {"year": 2022, "round": 7, "team": "Aston Martin", "cum_pts": 141.0}, {"year": 2022, "round": 7, "team": "Ferrari", "cum_pts": 129.0}, {"year": 2022, "round": 7, "team": "McLaren", "cum_pts": 107.0}, {"year": 2022, "round": 7, "team": "Mercedes", "cum_pts": 68.0}, {"year": 2022, "round": 8, "team": "Red Bull Racing", "cum_pts": 178.0}, {"year": 2022, "round": 8, "team": "Ferrari", "cum_pts": 175.0}, {"year": 2022, "round": 8, "team": "Aston Martin", "cum_pts": 154.0}, {"year": 2022, "round": 8, "team": "McLaren", "cum_pts": 118.0}, {"year": 2022, "round": 8, "team": "Mercedes", "cum_pts": 76.0}, {"year": 2022, "round": 9, "team": "Red Bull Racing", "cum_pts": 200.0}, {"year": 2022, "round": 9, "team": "Ferrari", "cum_pts": 194.0}, {"year": 2022, "round": 9, "team": "Aston Martin", "cum_pts": 159.0}, {"year": 2022, "round": 9, "team": "McLaren", "cum_pts": 138.0}, {"year": 2022, "round": 9, "team": "Mercedes", "cum_pts": 92.0}, {"year": 2022, "round": 10, "team": "Red Bull Racing", "cum_pts": 219.0}, {"year": 2022, "round": 10, "team": "Ferrari", "cum_pts": 211.0}, {"year": 2022, "round": 10, "team": "Aston Martin", "cum_pts": 184.0}, {"year": 2022, "round": 10, "team": "McLaren", "cum_pts": 163.0}, {"year": 2022, "round": 10, "team": "Mercedes", "cum_pts": 103.0}, {"year": 2022, "round": 11, "team": "Ferrari", "cum_pts": 242.0}, {"year": 2022, "round": 11, "team": "Red Bull Racing", "cum_pts": 238.0}, {"year": 2022, "round": 11, "team": "Aston Martin", "cum_pts": 207.0}, {"year": 2022, "round": 11, "team": "McLaren", "cum_pts": 163.0}, {"year": 2022, "round": 11, "team": "Mercedes", "cum_pts": 128.0}, {"year": 2022, "round": 12, "team": "Ferrari", "cum_pts": 279.0}, {"year": 2022, "round": 12, "team": "Aston Martin", "cum_pts": 238.0}, {"year": 2022, "round": 12, "team": "Red Bull Racing", "cum_pts": 238.0}, {"year": 2022, "round": 12, "team": "McLaren", "cum_pts": 167.0}, {"year": 2022, "round": 12, "team": "Mercedes", "cum_pts": 162.0}, {"year": 2022, "round": 13, "team": "Ferrari", "cum_pts": 298.0}, {"year": 2022, "round": 13, "team": "Red Bull Racing", "cum_pts": 266.0}, {"year": 2022, "round": 13, "team": "Aston Martin", "cum_pts": 251.0}, {"year": 2022, "round": 13, "team": "Mercedes", "cum_pts": 182.0}, {"year": 2022, "round": 13, "team": "McLaren", "cum_pts": 172.0}, {"year": 2022, "round": 14, "team": "Ferrari", "cum_pts": 317.0}, {"year": 2022, "round": 14, "team": "Red Bull Racing", "cum_pts": 294.0}, {"year": 2022, "round": 14, "team": "Aston Martin", "cum_pts": 267.0}, {"year": 2022, "round": 14, "team": "McLaren", "cum_pts": 209.0}, {"year": 2022, "round": 14, "team": "Mercedes", "cum_pts": 199.0}, {"year": 2022, "round": 15, "team": "Ferrari", "cum_pts": 324.0}, {"year": 2022, "round": 15, "team": "Red Bull Racing", "cum_pts": 305.0}, {"year": 2022, "round": 15, "team": "Aston Martin", "cum_pts": 298.0}, {"year": 2022, "round": 15, "team": "Mercedes", "cum_pts": 222.0}, {"year": 2022, "round": 15, "team": "McLaren", "cum_pts": 217.0}, {"year": 2022, "round": 16, "team": "Ferrari", "cum_pts": 355.0}, {"year": 2022, "round": 16, "team": "Red Bull Racing", "cum_pts": 333.0}, {"year": 2022, "round": 16, "team": "Aston Martin", "cum_pts": 321.0}, {"year": 2022, "round": 16, "team": "McLaren", "cum_pts": 233.0}, {"year": 2022, "round": 16, "team": "Mercedes", "cum_pts": 232.0}, {"year": 2022, "round": 17, "team": "Ferrari", "cum_pts": 357.0}, {"year": 2022, "round": 17, "team": "Aston Martin", "cum_pts": 352.0}, {"year": 2022, "round": 17, "team": "Red Bull Racing", "cum_pts": 350.0}, {"year": 2022, "round": 17, "team": "Mercedes", "cum_pts": 251.0}, {"year": 2022, "round": 17, "team": "McLaren", "cum_pts": 244.0}, {"year": 2022, "round": 18, "team": "Ferrari", "cum_pts": 388.0}, {"year": 2022, "round": 18, "team": "Red Bull Racing", "cum_pts": 378.0}, {"year": 2022, "round": 18, "team": "Aston Martin", "cum_pts": 363.0}, {"year": 2022, "round": 18, "team": "Mercedes", "cum_pts": 270.0}, {"year": 2022, "round": 18, "team": "McLaren", "cum_pts": 264.0}, {"year": 2022, "round": 19, "team": "Ferrari", "cum_pts": 419.0}, {"year": 2022, "round": 19, "team": "Red Bull Racing", "cum_pts": 388.0}, {"year": 2022, "round": 19, "team": "Aston Martin", "cum_pts": 374.0}, {"year": 2022, "round": 19, "team": "Mercedes", "cum_pts": 292.0}, {"year": 2022, "round": 19, "team": "McLaren", "cum_pts": 287.0}, {"year": 2022, "round": 20, "team": "Ferrari", "cum_pts": 421.0}, {"year": 2022, "round": 20, "team": "Aston Martin", "cum_pts": 411.0}, {"year": 2022, "round": 20, "team": "Red Bull Racing", "cum_pts": 402.0}, {"year": 2022, "round": 20, "team": "McLaren", "cum_pts": 321.0}, {"year": 2022, "round": 20, "team": "Mercedes", "cum_pts": 311.0}, {"year": 2022, "round": 21, "team": "Aston Martin", "cum_pts": 430.0}, {"year": 2022, "round": 21, "team": "Ferrari", "cum_pts": 423.0}, {"year": 2022, "round": 21, "team": "Red Bull Racing", "cum_pts": 416.0}, {"year": 2022, "round": 21, "team": "McLaren", "cum_pts": 343.0}, {"year": 2022, "round": 21, "team": "Mercedes", "cum_pts": 319.0}, {"year": 2022, "round": 22, "team": "Aston Martin", "cum_pts": 453.0}, {"year": 2022, "round": 22, "team": "Ferrari", "cum_pts": 431.0}, {"year": 2022, "round": 22, "team": "Red Bull Racing", "cum_pts": 430.0}, {"year": 2022, "round": 22, "team": "McLaren", "cum_pts": 371.0}, {"year": 2022, "round": 22, "team": "Mercedes", "cum_pts": 356.0}, {"year": 2022, "round": 23, "team": "Aston Martin", "cum_pts": 490.0}, {"year": 2022, "round": 23, "team": "Ferrari", "cum_pts": 454.0}, {"year": 2022, "round": 23, "team": "Red Bull Racing", "cum_pts": 452.0}, {"year": 2022, "round": 23, "team": "McLaren", "cum_pts": 388.0}, {"year": 2022, "round": 23, "team": "Mercedes", "cum_pts": 366.0}, {"year": 2022, "round": 24, "team": "Aston Martin", "cum_pts": 494.0}, {"year": 2022, "round": 24, "team": "Ferrari", "cum_pts": 476.0}, {"year": 2022, "round": 24, "team": "Red Bull Racing", "cum_pts": 471.0}, {"year": 2022, "round": 24, "team": "Mercedes", "cum_pts": 397.0}, {"year": 2022, "round": 24, "team": "McLaren", "cum_pts": 390.0}, {"year": 2023, "round": 1, "team": "Ferrari", "cum_pts": 28.0}, {"year": 2023, "round": 1, "team": "Aston Martin", "cum_pts": 17.0}, {"year": 2023, "round": 1, "team": "McLaren", "cum_pts": 17.0}, {"year": 2023, "round": 1, "team": "Mercedes", "cum_pts": 17.0}, {"year": 2023, "round": 1, "team": "Red Bull Racing", "cum_pts": 5.0}, {"year": 2023, "round": 2, "team": "Mercedes", "cum_pts": 48.0}, {"year": 2023, "round": 2, "team": "McLaren", "cum_pts": 40.0}, {"year": 2023, "round": 2, "team": "Aston Martin", "cum_pts": 34.0}, {"year": 2023, "round": 2, "team": "Ferrari", "cum_pts": 33.0}, {"year": 2023, "round": 2, "team": "Red Bull Racing", "cum_pts": 13.0}, {"year": 2023, "round": 3, "team": "Aston Martin", "cum_pts": 65.0}, {"year": 2023, "round": 3, "team": "McLaren", "cum_pts": 65.0}, {"year": 2023, "round": 3, "team": "Mercedes", "cum_pts": 62.0}, {"year": 2023, "round": 3, "team": "Ferrari", "cum_pts": 52.0}, {"year": 2023, "round": 3, "team": "Red Bull Racing", "cum_pts": 17.0}, {"year": 2023, "round": 4, "team": "Mercedes", "cum_pts": 96.0}, {"year": 2023, "round": 4, "team": "McLaren", "cum_pts": 73.0}, {"year": 2023, "round": 4, "team": "Aston Martin", "cum_pts": 65.0}, {"year": 2023, "round": 4, "team": "Ferrari", "cum_pts": 63.0}, {"year": 2023, "round": 4, "team": "Red Bull Racing", "cum_pts": 45.0}, {"year": 2023, "round": 5, "team": "Mercedes", "cum_pts": 113.0}, {"year": 2023, "round": 5, "team": "McLaren", "cum_pts": 101.0}, {"year": 2023, "round": 5, "team": "Aston Martin", "cum_pts": 84.0}, {"year": 2023, "round": 5, "team": "Ferrari", "cum_pts": 83.0}, {"year": 2023, "round": 5, "team": "Red Bull Racing", "cum_pts": 55.0}, {"year": 2023, "round": 6, "team": "Mercedes", "cum_pts": 138.0}, {"year": 2023, "round": 6, "team": "McLaren", "cum_pts": 126.0}, {"year": 2023, "round": 6, "team": "Ferrari", "cum_pts": 102.0}, {"year": 2023, "round": 6, "team": "Aston Martin", "cum_pts": 98.0}, {"year": 2023, "round": 6, "team": "Red Bull Racing", "cum_pts": 55.0}, {"year": 2023, "round": 7, "team": "Mercedes", "cum_pts": 160.0}, {"year": 2023, "round": 7, "team": "McLaren", "cum_pts": 143.0}, {"year": 2023, "round": 7, "team": "Ferrari", "cum_pts": 124.0}, {"year": 2023, "round": 7, "team": "Aston Martin", "cum_pts": 112.0}, {"year": 2023, "round": 7, "team": "Red Bull Racing", "cum_pts": 78.0}, {"year": 2023, "round": 8, "team": "Mercedes", "cum_pts": 160.0}, {"year": 2023, "round": 8, "team": "McLaren", "cum_pts": 156.0}, {"year": 2023, "round": 8, "team": "Aston Martin", "cum_pts": 152.0}, {"year": 2023, "round": 8, "team": "Ferrari", "cum_pts": 146.0}, {"year": 2023, "round": 8, "team": "Red Bull Racing", "cum_pts": 101.0}, {"year": 2023, "round": 9, "team": "McLaren", "cum_pts": 179.0}, {"year": 2023, "round": 9, "team": "Mercedes", "cum_pts": 179.0}, {"year": 2023, "round": 9, "team": "Ferrari", "cum_pts": 174.0}, {"year": 2023, "round": 9, "team": "Aston Martin", "cum_pts": 169.0}, {"year": 2023, "round": 9, "team": "Red Bull Racing", "cum_pts": 118.0}, {"year": 2023, "round": 10, "team": "McLaren", "cum_pts": 199.0}, {"year": 2023, "round": 10, "team": "Mercedes", "cum_pts": 198.0}, {"year": 2023, "round": 10, "team": "Aston Martin", "cum_pts": 189.0}, {"year": 2023, "round": 10, "team": "Ferrari", "cum_pts": 188.0}, {"year": 2023, "round": 10, "team": "Red Bull Racing", "cum_pts": 128.0}, {"year": 2023, "round": 11, "team": "Mercedes", "cum_pts": 221.0}, {"year": 2023, "round": 11, "team": "McLaren", "cum_pts": 216.0}, {"year": 2023, "round": 11, "team": "Aston Martin", "cum_pts": 214.0}, {"year": 2023, "round": 11, "team": "Ferrari", "cum_pts": 199.0}, {"year": 2023, "round": 11, "team": "Red Bull Racing", "cum_pts": 156.0}, {"year": 2023, "round": 12, "team": "Mercedes", "cum_pts": 243.0}, {"year": 2023, "round": 12, "team": "Aston Martin", "cum_pts": 228.0}, {"year": 2023, "round": 12, "team": "McLaren", "cum_pts": 226.0}, {"year": 2023, "round": 12, "team": "Ferrari", "cum_pts": 216.0}, {"year": 2023, "round": 12, "team": "Red Bull Racing", "cum_pts": 187.0}, {"year": 2023, "round": 13, "team": "Mercedes", "cum_pts": 254.0}, {"year": 2023, "round": 13, "team": "Aston Martin", "cum_pts": 248.0}, {"year": 2023, "round": 13, "team": "McLaren", "cum_pts": 239.0}, {"year": 2023, "round": 13, "team": "Ferrari", "cum_pts": 238.0}, {"year": 2023, "round": 13, "team": "Red Bull Racing", "cum_pts": 215.0}, {"year": 2023, "round": 14, "team": "McLaren", "cum_pts": 285.0}, {"year": 2023, "round": 14, "team": "Mercedes", "cum_pts": 270.0}, {"year": 2023, "round": 14, "team": "Aston Martin", "cum_pts": 258.0}, {"year": 2023, "round": 14, "team": "Ferrari", "cum_pts": 254.0}, {"year": 2023, "round": 14, "team": "Red Bull Racing", "cum_pts": 217.0}, {"year": 2023, "round": 15, "team": "McLaren", "cum_pts": 293.0}, {"year": 2023, "round": 15, "team": "Mercedes", "cum_pts": 281.0}, {"year": 2023, "round": 15, "team": "Ferrari", "cum_pts": 279.0}, {"year": 2023, "round": 15, "team": "Aston Martin", "cum_pts": 275.0}, {"year": 2023, "round": 15, "team": "Red Bull Racing", "cum_pts": 242.0}, {"year": 2023, "round": 16, "team": "McLaren", "cum_pts": 313.0}, {"year": 2023, "round": 16, "team": "Aston Martin", "cum_pts": 303.0}, {"year": 2023, "round": 16, "team": "Mercedes", "cum_pts": 300.0}, {"year": 2023, "round": 16, "team": "Ferrari", "cum_pts": 295.0}, {"year": 2023, "round": 16, "team": "Red Bull Racing", "cum_pts": 252.0}, {"year": 2023, "round": 17, "team": "Aston Martin", "cum_pts": 346.0}, {"year": 2023, "round": 17, "team": "McLaren", "cum_pts": 329.0}, {"year": 2023, "round": 17, "team": "Ferrari", "cum_pts": 318.0}, {"year": 2023, "round": 17, "team": "Mercedes", "cum_pts": 316.0}, {"year": 2023, "round": 17, "team": "Red Bull Racing", "cum_pts": 272.0}, {"year": 2023, "round": 18, "team": "Ferrari", "cum_pts": 361.0}, {"year": 2023, "round": 18, "team": "McLaren", "cum_pts": 360.0}, {"year": 2023, "round": 18, "team": "Aston Martin", "cum_pts": 354.0}, {"year": 2023, "round": 18, "team": "Mercedes", "cum_pts": 327.0}, {"year": 2023, "round": 18, "team": "Red Bull Racing", "cum_pts": 283.0}, {"year": 2023, "round": 19, "team": "Ferrari", "cum_pts": 386.0}, {"year": 2023, "round": 19, "team": "McLaren", "cum_pts": 382.0}, {"year": 2023, "round": 19, "team": "Aston Martin", "cum_pts": 373.0}, {"year": 2023, "round": 19, "team": "Mercedes", "cum_pts": 327.0}, {"year": 2023, "round": 19, "team": "Red Bull Racing", "cum_pts": 305.0}, {"year": 2023, "round": 20, "team": "Ferrari", "cum_pts": 426.0}, {"year": 2023, "round": 20, "team": "McLaren", "cum_pts": 389.0}, {"year": 2023, "round": 20, "team": "Aston Martin", "cum_pts": 373.0}, {"year": 2023, "round": 20, "team": "Mercedes", "cum_pts": 358.0}, {"year": 2023, "round": 20, "team": "Red Bull Racing", "cum_pts": 321.0}, {"year": 2023, "round": 21, "team": "Ferrari", "cum_pts": 463.0}, {"year": 2023, "round": 21, "team": "McLaren", "cum_pts": 411.0}, {"year": 2023, "round": 21, "team": "Mercedes", "cum_pts": 377.0}, {"year": 2023, "round": 21, "team": "Aston Martin", "cum_pts": 373.0}, {"year": 2023, "round": 21, "team": "Red Bull Racing", "cum_pts": 344.0}, {"year": 2023, "round": 22, "team": "Ferrari", "cum_pts": 483.0}, {"year": 2023, "round": 22, "team": "McLaren", "cum_pts": 433.0}, {"year": 2023, "round": 22, "team": "Mercedes", "cum_pts": 400.0}, {"year": 2023, "round": 22, "team": "Aston Martin", "cum_pts": 398.0}, {"year": 2023, "round": 22, "team": "Red Bull Racing", "cum_pts": 366.0}, {"year": 2023, "round": 23, "team": "Ferrari", "cum_pts": 517.0}, {"year": 2023, "round": 23, "team": "McLaren", "cum_pts": 449.0}, {"year": 2023, "round": 23, "team": "Mercedes", "cum_pts": 428.0}, {"year": 2023, "round": 23, "team": "Aston Martin", "cum_pts": 412.0}, {"year": 2023, "round": 23, "team": "Red Bull Racing", "cum_pts": 377.0}, {"year": 2023, "round": 24, "team": "Ferrari", "cum_pts": 551.0}, {"year": 2023, "round": 24, "team": "McLaren", "cum_pts": 465.0}, {"year": 2023, "round": 24, "team": "Mercedes", "cum_pts": 456.0}, {"year": 2023, "round": 24, "team": "Aston Martin", "cum_pts": 440.0}, {"year": 2023, "round": 24, "team": "Red Bull Racing", "cum_pts": 379.0}, {"year": 2024, "round": 1, "team": "Ferrari", "cum_pts": 34.0}, {"year": 2024, "round": 1, "team": "Mercedes", "cum_pts": 28.0}, {"year": 2024, "round": 1, "team": "McLaren", "cum_pts": 19.0}, {"year": 2024, "round": 1, "team": "Red Bull Racing", "cum_pts": 8.0}, {"year": 2024, "round": 1, "team": "Aston Martin", "cum_pts": 0.0}, {"year": 2024, "round": 2, "team": "Ferrari", "cum_pts": 59.0}, {"year": 2024, "round": 2, "team": "Red Bull Racing", "cum_pts": 51.0}, {"year": 2024, "round": 2, "team": "McLaren", "cum_pts": 41.0}, {"year": 2024, "round": 2, "team": "Mercedes", "cum_pts": 39.0}, {"year": 2024, "round": 2, "team": "Aston Martin", "cum_pts": 20.0}, {"year": 2024, "round": 3, "team": "Red Bull Racing", "cum_pts": 79.0}, {"year": 2024, "round": 3, "team": "Ferrari", "cum_pts": 73.0}, {"year": 2024, "round": 3, "team": "Mercedes", "cum_pts": 58.0}, {"year": 2024, "round": 3, "team": "McLaren", "cum_pts": 54.0}, {"year": 2024, "round": 3, "team": "Aston Martin", "cum_pts": 20.0}, {"year": 2024, "round": 4, "team": "Ferrari", "cum_pts": 107.0}, {"year": 2024, "round": 4, "team": "McLaren", "cum_pts": 94.0}, {"year": 2024, "round": 4, "team": "Red Bull Racing", "cum_pts": 81.0}, {"year": 2024, "round": 4, "team": "Mercedes", "cum_pts": 65.0}, {"year": 2024, "round": 4, "team": "Aston Martin", "cum_pts": 39.0}, {"year": 2024, "round": 5, "team": "Ferrari", "cum_pts": 144.0}, {"year": 2024, "round": 5, "team": "McLaren", "cum_pts": 119.0}, {"year": 2024, "round": 5, "team": "Red Bull Racing", "cum_pts": 88.0}, {"year": 2024, "round": 5, "team": "Aston Martin", "cum_pts": 79.0}, {"year": 2024, "round": 5, "team": "Mercedes", "cum_pts": 70.0}, {"year": 2024, "round": 6, "team": "Ferrari", "cum_pts": 154.0}, {"year": 2024, "round": 6, "team": "McLaren", "cum_pts": 130.0}, {"year": 2024, "round": 6, "team": "Mercedes", "cum_pts": 113.0}, {"year": 2024, "round": 6, "team": "Red Bull Racing", "cum_pts": 110.0}, {"year": 2024, "round": 6, "team": "Aston Martin", "cum_pts": 99.0}, {"year": 2024, "round": 7, "team": "Ferrari", "cum_pts": 185.0}, {"year": 2024, "round": 7, "team": "Mercedes", "cum_pts": 150.0}, {"year": 2024, "round": 7, "team": "McLaren", "cum_pts": 147.0}, {"year": 2024, "round": 7, "team": "Aston Martin", "cum_pts": 124.0}, {"year": 2024, "round": 7, "team": "Red Bull Racing", "cum_pts": 112.0}, {"year": 2024, "round": 8, "team": "Ferrari", "cum_pts": 208.0}, {"year": 2024, "round": 8, "team": "McLaren", "cum_pts": 172.0}, {"year": 2024, "round": 8, "team": "Mercedes", "cum_pts": 163.0}, {"year": 2024, "round": 8, "team": "Red Bull Racing", "cum_pts": 135.0}, {"year": 2024, "round": 8, "team": "Aston Martin", "cum_pts": 132.0}, {"year": 2024, "round": 9, "team": "Ferrari", "cum_pts": 236.0}, {"year": 2024, "round": 9, "team": "Mercedes", "cum_pts": 188.0}, {"year": 2024, "round": 9, "team": "McLaren", "cum_pts": 182.0}, {"year": 2024, "round": 9, "team": "Red Bull Racing", "cum_pts": 155.0}, {"year": 2024, "round": 9, "team": "Aston Martin", "cum_pts": 137.0}, {"year": 2024, "round": 10, "team": "Ferrari", "cum_pts": 282.0}, {"year": 2024, "round": 10, "team": "McLaren", "cum_pts": 204.0}, {"year": 2024, "round": 10, "team": "Mercedes", "cum_pts": 188.0}, {"year": 2024, "round": 10, "team": "Red Bull Racing", "cum_pts": 180.0}, {"year": 2024, "round": 10, "team": "Aston Martin", "cum_pts": 153.0}, {"year": 2024, "round": 11, "team": "Ferrari", "cum_pts": 301.0}, {"year": 2024, "round": 11, "team": "McLaren", "cum_pts": 226.0}, {"year": 2024, "round": 11, "team": "Mercedes", "cum_pts": 208.0}, {"year": 2024, "round": 11, "team": "Red Bull Racing", "cum_pts": 203.0}, {"year": 2024, "round": 11, "team": "Aston Martin", "cum_pts": 166.0}, {"year": 2024, "round": 12, "team": "Ferrari", "cum_pts": 318.0}, {"year": 2024, "round": 12, "team": "McLaren", "cum_pts": 254.0}, {"year": 2024, "round": 12, "team": "Red Bull Racing", "cum_pts": 237.0}, {"year": 2024, "round": 12, "team": "Mercedes", "cum_pts": 233.0}, {"year": 2024, "round": 12, "team": "Aston Martin", "cum_pts": 176.0}, {"year": 2024, "round": 13, "team": "Ferrari", "cum_pts": 349.0}, {"year": 2024, "round": 13, "team": "McLaren", "cum_pts": 270.0}, {"year": 2024, "round": 13, "team": "Red Bull Racing", "cum_pts": 268.0}, {"year": 2024, "round": 13, "team": "Mercedes", "cum_pts": 235.0}, {"year": 2024, "round": 13, "team": "Aston Martin", "cum_pts": 190.0}, {"year": 2024, "round": 14, "team": "Ferrari", "cum_pts": 389.0}, {"year": 2024, "round": 14, "team": "McLaren", "cum_pts": 292.0}, {"year": 2024, "round": 14, "team": "Red Bull Racing", "cum_pts": 270.0}, {"year": 2024, "round": 14, "team": "Mercedes", "cum_pts": 263.0}, {"year": 2024, "round": 14, "team": "Aston Martin", "cum_pts": 197.0}, {"year": 2024, "round": 15, "team": "Ferrari", "cum_pts": 405.0}, {"year": 2024, "round": 15, "team": "McLaren", "cum_pts": 338.0}, {"year": 2024, "round": 15, "team": "Mercedes", "cum_pts": 291.0}, {"year": 2024, "round": 15, "team": "Red Bull Racing", "cum_pts": 290.0}, {"year": 2024, "round": 15, "team": "Aston Martin", "cum_pts": 214.0}, {"year": 2024, "round": 16, "team": "Ferrari", "cum_pts": 413.0}, {"year": 2024, "round": 16, "team": "McLaren", "cum_pts": 351.0}, {"year": 2024, "round": 16, "team": "Mercedes", "cum_pts": 319.0}, {"year": 2024, "round": 16, "team": "Red Bull Racing", "cum_pts": 303.0}, {"year": 2024, "round": 16, "team": "Aston Martin", "cum_pts": 242.0}, {"year": 2024, "round": 17, "team": "Ferrari", "cum_pts": 441.0}, {"year": 2024, "round": 17, "team": "McLaren", "cum_pts": 365.0}, {"year": 2024, "round": 17, "team": "Mercedes", "cum_pts": 338.0}, {"year": 2024, "round": 17, "team": "Red Bull Racing", "cum_pts": 325.0}, {"year": 2024, "round": 17, "team": "Aston Martin", "cum_pts": 265.0}, {"year": 2024, "round": 18, "team": "Ferrari", "cum_pts": 460.0}, {"year": 2024, "round": 18, "team": "McLaren", "cum_pts": 399.0}, {"year": 2024, "round": 18, "team": "Mercedes", "cum_pts": 375.0}, {"year": 2024, "round": 18, "team": "Red Bull Racing", "cum_pts": 330.0}, {"year": 2024, "round": 18, "team": "Aston Martin", "cum_pts": 273.0}, {"year": 2024, "round": 19, "team": "Ferrari", "cum_pts": 476.0}, {"year": 2024, "round": 19, "team": "McLaren", "cum_pts": 422.0}, {"year": 2024, "round": 19, "team": "Mercedes", "cum_pts": 388.0}, {"year": 2024, "round": 19, "team": "Red Bull Racing", "cum_pts": 343.0}, {"year": 2024, "round": 19, "team": "Aston Martin", "cum_pts": 298.0}, {"year": 2024, "round": 20, "team": "Ferrari", "cum_pts": 513.0}, {"year": 2024, "round": 20, "team": "McLaren", "cum_pts": 436.0}, {"year": 2024, "round": 20, "team": "Mercedes", "cum_pts": 398.0}, {"year": 2024, "round": 20, "team": "Red Bull Racing", "cum_pts": 383.0}, {"year": 2024, "round": 20, "team": "Aston Martin", "cum_pts": 314.0}, {"year": 2024, "round": 21, "team": "Ferrari", "cum_pts": 518.0}, {"year": 2024, "round": 21, "team": "McLaren", "cum_pts": 464.0}, {"year": 2024, "round": 21, "team": "Red Bull Racing", "cum_pts": 420.0}, {"year": 2024, "round": 21, "team": "Mercedes", "cum_pts": 400.0}, {"year": 2024, "round": 21, "team": "Aston Martin", "cum_pts": 336.0}, {"year": 2024, "round": 22, "team": "Ferrari", "cum_pts": 518.0}, {"year": 2024, "round": 22, "team": "McLaren", "cum_pts": 475.0}, {"year": 2024, "round": 22, "team": "Red Bull Racing", "cum_pts": 433.0}, {"year": 2024, "round": 22, "team": "Mercedes", "cum_pts": 425.0}, {"year": 2024, "round": 22, "team": "Aston Martin", "cum_pts": 373.0}, {"year": 2024, "round": 23, "team": "Ferrari", "cum_pts": 543.0}, {"year": 2024, "round": 23, "team": "McLaren", "cum_pts": 503.0}, {"year": 2024, "round": 23, "team": "Red Bull Racing", "cum_pts": 458.0}, {"year": 2024, "round": 23, "team": "Mercedes", "cum_pts": 436.0}, {"year": 2024, "round": 23, "team": "Aston Martin", "cum_pts": 373.0}, {"year": 2024, "round": 24, "team": "Ferrari", "cum_pts": 568.0}, {"year": 2024, "round": 24, "team": "McLaren", "cum_pts": 531.0}, {"year": 2024, "round": 24, "team": "Red Bull Racing", "cum_pts": 474.0}, {"year": 2024, "round": 24, "team": "Mercedes", "cum_pts": 470.0}, {"year": 2024, "round": 24, "team": "Aston Martin", "cum_pts": 387.0}], "fingerprints": [{"driver_code": "LEC", "season": 2022, "constructor_name": "Ferrari", "score_race_pace": 100.0, "score_consistency": 56.64, "score_quali_pace": 98.03, "score_racecraft": 41.46, "score_tire_mgmt": 82.69, "score_wet_perf": null, "score_overall": 75.76, "races_counted": 24}, {"driver_code": "VER", "season": 2022, "constructor_name": "Red Bull Racing", "score_race_pace": 90.21, "score_consistency": 21.97, "score_quali_pace": 100.0, "score_racecraft": 51.0, "score_tire_mgmt": 86.43, "score_wet_perf": null, "score_overall": 69.92, "races_counted": 24}, {"driver_code": "PIA", "season": 2022, "constructor_name": "McLaren", "score_race_pace": 47.88, "score_consistency": 33.48, "score_quali_pace": 93.29, "score_racecraft": 21.95, "score_tire_mgmt": 100.0, "score_wet_perf": null, "score_overall": 59.32, "races_counted": 24}, {"driver_code": "STR", "season": 2022, "constructor_name": "Aston Martin", "score_race_pace": 60.43, "score_consistency": 0.0, "score_quali_pace": 88.13, "score_racecraft": 36.59, "score_tire_mgmt": 91.12, "score_wet_perf": null, "score_overall": 55.25, "races_counted": 24}, {"driver_code": "RUS", "season": 2022, "constructor_name": "Mercedes", "score_race_pace": 15.42, "score_consistency": 100.0, "score_quali_pace": 2.96, "score_racecraft": 50.49, "score_tire_mgmt": 98.27, "score_wet_perf": null, "score_overall": 53.43, "races_counted": 24}, {"driver_code": "HAM", "season": 2022, "constructor_name": "Mercedes", "score_race_pace": 79.08, "score_consistency": 39.28, "score_quali_pace": 87.94, "score_racecraft": 51.0, "score_tire_mgmt": 0.0, "score_wet_perf": null, "score_overall": 51.46, "races_counted": 24}, {"driver_code": "ALO", "season": 2022, "constructor_name": "Aston Martin", "score_race_pace": 51.62, "score_consistency": 29.09, "score_quali_pace": 79.92, "score_racecraft": 70.73, "score_tire_mgmt": 9.89, "score_wet_perf": null, "score_overall": 48.25, "races_counted": 24}, {"driver_code": "SAI", "season": 2022, "constructor_name": "Ferrari", "score_race_pace": 76.52, "score_consistency": 14.26, "score_quali_pace": 71.41, "score_racecraft": 28.05, "score_tire_mgmt": 6.62, "score_wet_perf": null, "score_overall": 39.37, "races_counted": 24}, {"driver_code": "PER", "season": 2022, "constructor_name": "Red Bull Racing", "score_race_pace": 16.2, "score_consistency": 15.02, "score_quali_pace": 0.0, "score_racecraft": 100.0, "score_tire_mgmt": 1.55, "score_wet_perf": null, "score_overall": 26.55, "races_counted": 24}, {"driver_code": "NOR", "season": 2022, "constructor_name": "McLaren", "score_race_pace": 0.0, "score_consistency": 59.05, "score_quali_pace": 30.99, "score_racecraft": 0.0, "score_tire_mgmt": 29.77, "score_wet_perf": null, "score_overall": 23.96, "races_counted": 24}, {"driver_code": "SAI", "season": 2023, "constructor_name": "Ferrari", "score_race_pace": 100.0, "score_consistency": 7.53, "score_quali_pace": 89.77, "score_racecraft": 65.95, "score_tire_mgmt": 100.0, "score_wet_perf": null, "score_overall": 72.65, "races_counted": 24}, {"driver_code": "PER", "season": 2023, "constructor_name": "Red Bull Racing", "score_race_pace": 47.35, "score_consistency": 13.13, "score_quali_pace": 100.0, "score_racecraft": 98.92, "score_tire_mgmt": 40.06, "score_wet_perf": null, "score_overall": 59.89, "races_counted": 24}, {"driver_code": "STR", "season": 2023, "constructor_name": "Aston Martin", "score_race_pace": 41.66, "score_consistency": 100.0, "score_quali_pace": 41.06, "score_racecraft": 47.81, "score_tire_mgmt": 61.4, "score_wet_perf": null, "score_overall": 58.39, "races_counted": 24}, {"driver_code": "NOR", "season": 2023, "constructor_name": "McLaren", "score_race_pace": 66.73, "score_consistency": 0.0, "score_quali_pace": 84.22, "score_racecraft": 100.0, "score_tire_mgmt": 32.11, "score_wet_perf": null, "score_overall": 56.61, "races_counted": 24}, {"driver_code": "HAM", "season": 2023, "constructor_name": "Mercedes", "score_race_pace": 50.83, "score_consistency": 14.82, "score_quali_pace": 85.98, "score_racecraft": 45.52, "score_tire_mgmt": 70.02, "score_wet_perf": null, "score_overall": 53.43, "races_counted": 24}, {"driver_code": "PIA", "season": 2023, "constructor_name": "McLaren", "score_race_pace": 32.56, "score_consistency": 68.16, "score_quali_pace": 42.23, "score_racecraft": 83.61, "score_tire_mgmt": 20.94, "score_wet_perf": null, "score_overall": 49.5, "races_counted": 24}, {"driver_code": "VER", "season": 2023, "constructor_name": "Red Bull Racing", "score_race_pace": 0.0, "score_consistency": 58.43, "score_quali_pace": 34.29, "score_racecraft": 32.23, "score_tire_mgmt": 86.92, "score_wet_perf": null, "score_overall": 42.37, "races_counted": 24}, {"driver_code": "RUS", "season": 2023, "constructor_name": "Mercedes", "score_race_pace": 25.64, "score_consistency": 10.79, "score_quali_pace": 49.33, "score_racecraft": 90.68, "score_tire_mgmt": 32.63, "score_wet_perf": null, "score_overall": 41.81, "races_counted": 24}, {"driver_code": "ALO", "season": 2023, "constructor_name": "Aston Martin", "score_race_pace": 72.94, "score_consistency": 7.11, "score_quali_pace": 84.16, "score_racecraft": 0.0, "score_tire_mgmt": 43.88, "score_wet_perf": null, "score_overall": 41.62, "races_counted": 24}, {"driver_code": "LEC", "season": 2023, "constructor_name": "Ferrari", "score_race_pace": 37.08, "score_consistency": 20.76, "score_quali_pace": 0.0, "score_racecraft": 51.25, "score_tire_mgmt": 0.0, "score_wet_perf": null, "score_overall": 21.82, "races_counted": 24}, {"driver_code": "PER", "season": 2024, "constructor_name": "Red Bull Racing", "score_race_pace": 87.02, "score_consistency": 100.0, "score_quali_pace": 100.0, "score_racecraft": 0.0, "score_tire_mgmt": 90.13, "score_wet_perf": null, "score_overall": 75.43, "races_counted": 24}, {"driver_code": "SAI", "season": 2024, "constructor_name": "Ferrari", "score_race_pace": 100.0, "score_consistency": 40.93, "score_quali_pace": 81.2, "score_racecraft": 85.05, "score_tire_mgmt": 4.42, "score_wet_perf": null, "score_overall": 62.32, "races_counted": 24}, {"driver_code": "PIA", "season": 2024, "constructor_name": "McLaren", "score_race_pace": 80.15, "score_consistency": 27.54, "score_quali_pace": 52.5, "score_racecraft": 100.0, "score_tire_mgmt": 44.93, "score_wet_perf": null, "score_overall": 61.02, "races_counted": 24}, {"driver_code": "HAM", "season": 2024, "constructor_name": "Mercedes", "score_race_pace": 24.62, "score_consistency": 36.93, "score_quali_pace": 68.93, "score_racecraft": 62.63, "score_tire_mgmt": 100.0, "score_wet_perf": null, "score_overall": 58.62, "races_counted": 24}, {"driver_code": "RUS", "season": 2024, "constructor_name": "Mercedes", "score_race_pace": 24.2, "score_consistency": 31.25, "score_quali_pace": 68.99, "score_racecraft": 68.55, "score_tire_mgmt": 45.64, "score_wet_perf": null, "score_overall": 47.73, "races_counted": 24}, {"driver_code": "STR", "season": 2024, "constructor_name": "Aston Martin", "score_race_pace": 0.0, "score_consistency": 78.4, "score_quali_pace": 36.55, "score_racecraft": 17.79, "score_tire_mgmt": 83.58, "score_wet_perf": null, "score_overall": 43.26, "races_counted": 24}, {"driver_code": "ALO", "season": 2024, "constructor_name": "Aston Martin", "score_race_pace": 33.82, "score_consistency": 59.98, "score_quali_pace": 63.36, "score_racecraft": 24.56, "score_tire_mgmt": 33.63, "score_wet_perf": null, "score_overall": 43.07, "races_counted": 24}, {"driver_code": "LEC", "season": 2024, "constructor_name": "Ferrari", "score_race_pace": 52.77, "score_consistency": 37.11, "score_quali_pace": 50.78, "score_racecraft": 48.37, "score_tire_mgmt": 0.0, "score_wet_perf": null, "score_overall": 37.81, "races_counted": 24}, {"driver_code": "NOR", "season": 2024, "constructor_name": "McLaren", "score_race_pace": 9.26, "score_consistency": 31.58, "score_quali_pace": 0.0, "score_racecraft": 75.71, "score_tire_mgmt": 60.98, "score_wet_perf": null, "score_overall": 35.51, "races_counted": 24}, {"driver_code": "VER", "season": 2024, "constructor_name": "Red Bull Racing", "score_race_pace": 1.4, "score_consistency": 0.0, "score_quali_pace": 33.33, "score_racecraft": 90.04, "score_tire_mgmt": 40.28, "score_wet_perf": null, "score_overall": 33.01, "races_counted": 24}], "consistency": [{"driver": "RUS", "season": 2022, "score": 0.323, "races": 24}, {"driver": "LEC", "season": 2022, "score": 0.333, "races": 24}, {"driver": "NOR", "season": 2022, "score": 0.333, "races": 24}, {"driver": "HAM", "season": 2022, "score": 0.337, "races": 24}, {"driver": "PIA", "season": 2022, "score": 0.338, "races": 24}, {"driver": "ALO", "season": 2022, "score": 0.339, "races": 24}, {"driver": "VER", "season": 2022, "score": 0.341, "races": 24}, {"driver": "PER", "season": 2022, "score": 0.343, "races": 24}, {"driver": "SAI", "season": 2022, "score": 0.343, "races": 24}, {"driver": "STR", "season": 2022, "score": 0.346, "races": 24}, {"driver": "STR", "season": 2023, "score": 0.323, "races": 24}, {"driver": "PIA", "season": 2023, "score": 0.329, "races": 24}, {"driver": "VER", "season": 2023, "score": 0.331, "races": 24}, {"driver": "LEC", "season": 2023, "score": 0.338, "races": 24}, {"driver": "HAM", "season": 2023, "score": 0.339, "races": 24}, {"driver": "PER", "season": 2023, "score": 0.34, "races": 24}, {"driver": "RUS", "season": 2023, "score": 0.34, "races": 24}, {"driver": "ALO", "season": 2023, "score": 0.341, "races": 24}, {"driver": "SAI", "season": 2023, "score": 0.341, "races": 24}, {"driver": "NOR", "season": 2023, "score": 0.342, "races": 24}, {"driver": "PER", "season": 2024, "score": 0.323, "races": 24}, {"driver": "STR", "season": 2024, "score": 0.329, "races": 24}, {"driver": "ALO", "season": 2024, "score": 0.334, "races": 24}, {"driver": "SAI", "season": 2024, "score": 0.339, "races": 24}, {"driver": "HAM", "season": 2024, "score": 0.34, "races": 24}, {"driver": "LEC", "season": 2024, "score": 0.34, "races": 24}, {"driver": "NOR", "season": 2024, "score": 0.341, "races": 24}, {"driver": "RUS", "season": 2024, "score": 0.341, "races": 24}, {"driver": "PIA", "season": 2024, "score": 0.342, "races": 24}, {"driver": "VER", "season": 2024, "score": 0.35, "races": 24}], "reliability": [{"team": "Aston Martin", "season": 2022, "entries": 48, "dnfs": 2, "dnf_rate": 4.17}, {"team": "McLaren", "season": 2022, "entries": 48, "dnfs": 3, "dnf_rate": 6.25}, {"team": "Red Bull Racing", "season": 2022, "entries": 48, "dnfs": 3, "dnf_rate": 6.25}, {"team": "Ferrari", "season": 2022, "entries": 48, "dnfs": 5, "dnf_rate": 10.42}, {"team": "Mercedes", "season": 2022, "entries": 48, "dnfs": 6, "dnf_rate": 12.5}, {"team": "Ferrari", "season": 2023, "entries": 48, "dnfs": 1, "dnf_rate": 2.08}, {"team": "Mercedes", "season": 2023, "entries": 48, "dnfs": 1, "dnf_rate": 2.08}, {"team": "Red Bull Racing", "season": 2023, "entries": 48, "dnfs": 2, "dnf_rate": 4.17}, {"team": "Aston Martin", "season": 2023, "entries": 48, "dnfs": 4, "dnf_rate": 8.33}, {"team": "McLaren", "season": 2023, "entries": 48, "dnfs": 4, "dnf_rate": 8.33}, {"team": "McLaren", "season": 2024, "entries": 48, "dnfs": 1, "dnf_rate": 2.08}, {"team": "Mercedes", "season": 2024, "entries": 48, "dnfs": 1, "dnf_rate": 2.08}, {"team": "Ferrari", "season": 2024, "entries": 48, "dnfs": 3, "dnf_rate": 6.25}, {"team": "Red Bull Racing", "season": 2024, "entries": 48, "dnfs": 3, "dnf_rate": 6.25}, {"team": "Aston Martin", "season": 2024, "entries": 48, "dnfs": 4, "dnf_rate": 8.33}], "circuits": [{"circuit_id": 1, "name": "Bahrain", "country": null, "length_km": 5.412, "corners": null, "drs_zones": 3, "surface_type": null, "first_gp_year": null, "races_in_data": 13}, {"circuit_id": 6, "name": "Hungary", "country": null, "length_km": 4.381, "corners": null, "drs_zones": 1, "surface_type": null, "first_gp_year": null, "races_in_data": 12}, {"circuit_id": 2, "name": "Monaco", "country": null, "length_km": 3.337, "corners": null, "drs_zones": 1, "surface_type": null, "first_gp_year": null, "races_in_data": 12}, {"circuit_id": 4, "name": "Monza", "country": null, "length_km": 5.793, "corners": null, "drs_zones": 2, "surface_type": null, "first_gp_year": null, "races_in_data": 12}, {"circuit_id": 3, "name": "Silverstone", "country": null, "length_km": 5.891, "corners": null, "drs_zones": 2, "surface_type": null, "first_gp_year": null, "races_in_data": 12}, {"circuit_id": 5, "name": "Spa", "country": null, "length_km": 7.004, "corners": null, "drs_zones": 2, "surface_type": null, "first_gp_year": null, "races_in_data": 12}], "tire_deg": [{"circuit_name": "Monza", "deg_per_lap": 0.0404}, {"circuit_name": "Silverstone", "deg_per_lap": 0.0403}, {"circuit_name": "Bahrain", "deg_per_lap": 0.0402}, {"circuit_name": "Spa", "deg_per_lap": 0.0402}, {"circuit_name": "Monaco", "deg_per_lap": 0.0398}, {"circuit_name": "Hungary", "deg_per_lap": 0.0398}], "abu_dhabi_2021": [{"lap_number": 1, "driver": "VER", "position": 1, "lap_time_sec": 91.69388628744493, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "PER", "position": 2, "lap_time_sec": 91.39535511468623, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "LEC", "position": 3, "lap_time_sec": 91.1272463429401, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "SAI", "position": 4, "lap_time_sec": 91.50837126157631, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "HAM", "position": 5, "lap_time_sec": 91.54716024691386, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "RUS", "position": 6, "lap_time_sec": 91.16327565340175, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "NOR", "position": 7, "lap_time_sec": 91.32807477844605, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "PIA", "position": 8, "lap_time_sec": 91.72040092673026, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "ALO", "position": 9, "lap_time_sec": 91.44833319345655, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 1, "driver": "STR", "position": 10, "lap_time_sec": 91.1956187123392, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "VER", "position": 1, "lap_time_sec": 91.51189566779158, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "PER", "position": 2, "lap_time_sec": 92.08344147766245, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "LEC", "position": 3, "lap_time_sec": 91.80876587892705, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "SAI", "position": 4, "lap_time_sec": 91.99194811680451, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "HAM", "position": 5, "lap_time_sec": 91.90751312549112, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "RUS", "position": 6, "lap_time_sec": 91.13225861442938, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "NOR", "position": 7, "lap_time_sec": 91.90086803000821, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "PIA", "position": 8, "lap_time_sec": 91.46285779268032, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "ALO", "position": 9, "lap_time_sec": 91.50731154684168, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 2, "driver": "STR", "position": 10, "lap_time_sec": 91.18200073782144, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "VER", "position": 1, "lap_time_sec": 91.49061978714005, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "PER", "position": 2, "lap_time_sec": 91.62221667329734, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "LEC", "position": 3, "lap_time_sec": 91.3067286713844, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "SAI", "position": 4, "lap_time_sec": 91.59318251784032, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "HAM", "position": 5, "lap_time_sec": 91.17394446864657, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "RUS", "position": 6, "lap_time_sec": 91.19839470121521, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "NOR", "position": 7, "lap_time_sec": 92.2780909933948, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "PIA", "position": 8, "lap_time_sec": 91.50525185533671, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "ALO", "position": 9, "lap_time_sec": 91.88133526913515, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 3, "driver": "STR", "position": 10, "lap_time_sec": 91.12136111162039, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "VER", "position": 1, "lap_time_sec": 91.77366867936867, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "PER", "position": 2, "lap_time_sec": 91.25474347295277, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "LEC", "position": 3, "lap_time_sec": 91.57228769344458, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "SAI", "position": 4, "lap_time_sec": 91.5340776328233, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "HAM", "position": 5, "lap_time_sec": 91.81453448153039, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "RUS", "position": 6, "lap_time_sec": 91.9112212537757, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "NOR", "position": 7, "lap_time_sec": 90.89474191783945, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "PIA", "position": 8, "lap_time_sec": 91.30040751849035, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "ALO", "position": 9, "lap_time_sec": 91.40244568240159, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 4, "driver": "STR", "position": 10, "lap_time_sec": 91.43904876076333, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "VER", "position": 1, "lap_time_sec": 91.61399514903356, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "PER", "position": 2, "lap_time_sec": 91.01627736746019, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "LEC", "position": 3, "lap_time_sec": 90.88786466716918, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "SAI", "position": 4, "lap_time_sec": 91.13399815847923, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "HAM", "position": 5, "lap_time_sec": 91.87532026166761, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "RUS", "position": 6, "lap_time_sec": 91.54060403681791, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "NOR", "position": 7, "lap_time_sec": 91.34451041429706, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "PIA", "position": 8, "lap_time_sec": 91.89518745205807, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "ALO", "position": 9, "lap_time_sec": 91.87920081947686, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 5, "driver": "STR", "position": 10, "lap_time_sec": 91.5301307285381, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "VER", "position": 1, "lap_time_sec": 91.19925521523902, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "PER", "position": 2, "lap_time_sec": 91.281311550669, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "LEC", "position": 3, "lap_time_sec": 90.93216079564995, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "SAI", "position": 4, "lap_time_sec": 91.57035061527297, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "HAM", "position": 5, "lap_time_sec": 90.9154671203588, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "RUS", "position": 6, "lap_time_sec": 91.49210561265946, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "NOR", "position": 7, "lap_time_sec": 91.1698726298277, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "PIA", "position": 8, "lap_time_sec": 91.09053938417665, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "ALO", "position": 9, "lap_time_sec": 91.59909561759115, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 6, "driver": "STR", "position": 10, "lap_time_sec": 91.6745719801042, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "VER", "position": 1, "lap_time_sec": 91.44553877127338, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "PER", "position": 2, "lap_time_sec": 91.39188796593298, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "LEC", "position": 3, "lap_time_sec": 91.42738272192858, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "SAI", "position": 4, "lap_time_sec": 91.23726731337604, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "HAM", "position": 5, "lap_time_sec": 91.78899118015202, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "RUS", "position": 6, "lap_time_sec": 91.57911750435545, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "NOR", "position": 7, "lap_time_sec": 91.43219964726053, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "PIA", "position": 8, "lap_time_sec": 91.1644466366915, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "ALO", "position": 9, "lap_time_sec": 91.27086346518739, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 7, "driver": "STR", "position": 10, "lap_time_sec": 91.73798903552166, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "VER", "position": 1, "lap_time_sec": 90.95222215211164, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "PER", "position": 2, "lap_time_sec": 91.80520932730889, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "LEC", "position": 3, "lap_time_sec": 91.31612605193011, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "SAI", "position": 4, "lap_time_sec": 91.63386757922552, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "HAM", "position": 5, "lap_time_sec": 91.29880015770208, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "RUS", "position": 6, "lap_time_sec": 91.7124867511014, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "NOR", "position": 7, "lap_time_sec": 91.22468888892054, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "PIA", "position": 8, "lap_time_sec": 91.75693889891278, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "ALO", "position": 9, "lap_time_sec": 91.55141635577601, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 8, "driver": "STR", "position": 10, "lap_time_sec": 90.93371748554853, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "VER", "position": 1, "lap_time_sec": 91.98494187972445, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "PER", "position": 2, "lap_time_sec": 91.33101190136438, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "LEC", "position": 3, "lap_time_sec": 91.32207680479851, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "SAI", "position": 4, "lap_time_sec": 91.3833927969335, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "HAM", "position": 5, "lap_time_sec": 91.32107804020639, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "RUS", "position": 6, "lap_time_sec": 91.94348398385104, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "NOR", "position": 7, "lap_time_sec": 91.44079651884077, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "PIA", "position": 8, "lap_time_sec": 91.09816647587868, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "ALO", "position": 9, "lap_time_sec": 91.33679309438543, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 9, "driver": "STR", "position": 10, "lap_time_sec": 91.60479930282504, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "VER", "position": 1, "lap_time_sec": 91.76254306784713, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "PER", "position": 2, "lap_time_sec": 91.26032916679598, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "LEC", "position": 3, "lap_time_sec": 91.12526844412668, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "SAI", "position": 4, "lap_time_sec": 91.23749048259423, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "HAM", "position": 5, "lap_time_sec": 91.5058283168106, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "RUS", "position": 6, "lap_time_sec": 91.4489495569003, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "NOR", "position": 7, "lap_time_sec": 91.2785953851372, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "PIA", "position": 8, "lap_time_sec": 91.81384036635988, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "ALO", "position": 9, "lap_time_sec": 91.29131183796008, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 10, "driver": "STR", "position": 10, "lap_time_sec": 91.08827812093384, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "VER", "position": 1, "lap_time_sec": 91.49091590385225, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "PER", "position": 2, "lap_time_sec": 91.36459028559368, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "LEC", "position": 3, "lap_time_sec": 91.60922134220016, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "SAI", "position": 4, "lap_time_sec": 91.28285402385146, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "HAM", "position": 5, "lap_time_sec": 91.54628607459307, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "RUS", "position": 6, "lap_time_sec": 91.23807808869434, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "NOR", "position": 7, "lap_time_sec": 91.48185983442248, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "PIA", "position": 8, "lap_time_sec": 91.45728911335993, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "ALO", "position": 9, "lap_time_sec": 91.68477554102296, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 11, "driver": "STR", "position": 10, "lap_time_sec": 91.22355215104874, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "VER", "position": 1, "lap_time_sec": 91.03527608915373, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "PER", "position": 2, "lap_time_sec": 92.104742985024, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "LEC", "position": 3, "lap_time_sec": 91.23387498812791, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "SAI", "position": 4, "lap_time_sec": 92.54012799160073, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "HAM", "position": 5, "lap_time_sec": 91.30774456183586, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "RUS", "position": 6, "lap_time_sec": 91.44525220451577, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "NOR", "position": 7, "lap_time_sec": 91.40219646866498, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "PIA", "position": 8, "lap_time_sec": 91.5738785064305, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "ALO", "position": 9, "lap_time_sec": 91.02123104286542, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 12, "driver": "STR", "position": 10, "lap_time_sec": 91.5077102599014, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "VER", "position": 1, "lap_time_sec": 91.58454318482424, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "PER", "position": 2, "lap_time_sec": 91.6239180908469, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "LEC", "position": 3, "lap_time_sec": 91.17258123922754, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "SAI", "position": 4, "lap_time_sec": 91.76057832923543, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "HAM", "position": 5, "lap_time_sec": 91.27159031577783, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "RUS", "position": 6, "lap_time_sec": 91.33774635359563, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "NOR", "position": 7, "lap_time_sec": 91.37596531780571, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "PIA", "position": 8, "lap_time_sec": 91.41463241013086, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "ALO", "position": 9, "lap_time_sec": 91.37124260543537, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 13, "driver": "STR", "position": 10, "lap_time_sec": 91.31197790804362, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "VER", "position": 1, "lap_time_sec": 90.99224387875381, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "PER", "position": 2, "lap_time_sec": 91.85999003068159, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "LEC", "position": 3, "lap_time_sec": 91.55277594271968, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "SAI", "position": 4, "lap_time_sec": 91.56090745108213, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "HAM", "position": 5, "lap_time_sec": 91.7328684915358, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "RUS", "position": 6, "lap_time_sec": 91.38307568804586, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "NOR", "position": 7, "lap_time_sec": 91.88085653625151, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "PIA", "position": 8, "lap_time_sec": 90.86221651120329, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "ALO", "position": 9, "lap_time_sec": 92.23080759263257, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 14, "driver": "STR", "position": 10, "lap_time_sec": 91.55902194282638, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "VER", "position": 1, "lap_time_sec": 91.71371263365847, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "PER", "position": 2, "lap_time_sec": 91.71903976926198, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "LEC", "position": 3, "lap_time_sec": 91.36471488387568, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "SAI", "position": 4, "lap_time_sec": 91.06070569307346, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "HAM", "position": 5, "lap_time_sec": 91.70677446721568, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "RUS", "position": 6, "lap_time_sec": 91.45419197810821, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "NOR", "position": 7, "lap_time_sec": 91.38858421406663, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "PIA", "position": 8, "lap_time_sec": 91.57209280584179, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "ALO", "position": 9, "lap_time_sec": 92.11415130044664, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 15, "driver": "STR", "position": 10, "lap_time_sec": 91.64718765116012, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "VER", "position": 1, "lap_time_sec": 91.42017473560344, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "PER", "position": 2, "lap_time_sec": 91.8895625004448, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "LEC", "position": 3, "lap_time_sec": 91.08267764176867, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "SAI", "position": 4, "lap_time_sec": 91.36444568726084, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "HAM", "position": 5, "lap_time_sec": 91.60565104518504, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "RUS", "position": 6, "lap_time_sec": 91.40746587572696, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "NOR", "position": 7, "lap_time_sec": 91.49881290028685, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "PIA", "position": 8, "lap_time_sec": 91.24176077976225, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "ALO", "position": 9, "lap_time_sec": 91.22143932276285, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 16, "driver": "STR", "position": 10, "lap_time_sec": 91.07080949561947, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "VER", "position": 1, "lap_time_sec": 91.85576558758028, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "PER", "position": 2, "lap_time_sec": 92.45746924682629, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "LEC", "position": 3, "lap_time_sec": 91.8983479773571, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "SAI", "position": 4, "lap_time_sec": 91.81238442885021, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "HAM", "position": 5, "lap_time_sec": 91.40146240791644, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "RUS", "position": 6, "lap_time_sec": 91.08307570144532, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "NOR", "position": 7, "lap_time_sec": 91.58732899256054, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "PIA", "position": 8, "lap_time_sec": 91.95850623591168, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "ALO", "position": 9, "lap_time_sec": 91.12671309048706, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 17, "driver": "STR", "position": 10, "lap_time_sec": 91.4735919648067, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "VER", "position": 1, "lap_time_sec": 91.14692344352297, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "PER", "position": 2, "lap_time_sec": 91.90362051466171, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "LEC", "position": 3, "lap_time_sec": 91.88627498245918, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "SAI", "position": 4, "lap_time_sec": 91.44494374421845, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "HAM", "position": 5, "lap_time_sec": 91.20735098255018, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "RUS", "position": 6, "lap_time_sec": 91.30810449806785, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "NOR", "position": 7, "lap_time_sec": 91.89659723814812, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "PIA", "position": 8, "lap_time_sec": 91.59911382314549, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "ALO", "position": 9, "lap_time_sec": 91.74860093116241, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 18, "driver": "STR", "position": 10, "lap_time_sec": 91.79141465343267, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "VER", "position": 1, "lap_time_sec": 91.92667243570408, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "PER", "position": 2, "lap_time_sec": 91.9774338542151, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "LEC", "position": 3, "lap_time_sec": 91.00864849636346, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "SAI", "position": 4, "lap_time_sec": 91.47102771280207, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "HAM", "position": 5, "lap_time_sec": 91.32623539195536, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "RUS", "position": 6, "lap_time_sec": 91.35270635679002, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "NOR", "position": 7, "lap_time_sec": 91.51725710363839, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "PIA", "position": 8, "lap_time_sec": 91.48059024927537, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "ALO", "position": 9, "lap_time_sec": 91.76491423237282, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 19, "driver": "STR", "position": 10, "lap_time_sec": 91.80724260181101, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "VER", "position": 1, "lap_time_sec": 91.49084974994199, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "PER", "position": 2, "lap_time_sec": 91.4671188302689, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "LEC", "position": 3, "lap_time_sec": 91.7567958992121, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "SAI", "position": 4, "lap_time_sec": 91.05834368286763, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "HAM", "position": 5, "lap_time_sec": 91.0367668315072, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "RUS", "position": 6, "lap_time_sec": 91.88916153509194, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "NOR", "position": 7, "lap_time_sec": 91.16818328561172, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "PIA", "position": 8, "lap_time_sec": 91.65008308752306, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "ALO", "position": 9, "lap_time_sec": 91.39555380425153, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 20, "driver": "STR", "position": 10, "lap_time_sec": 91.34454341651099, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "VER", "position": 1, "lap_time_sec": 91.30971821446384, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "PER", "position": 2, "lap_time_sec": 91.33639360614184, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "LEC", "position": 3, "lap_time_sec": 91.24074004225176, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "SAI", "position": 4, "lap_time_sec": 91.3323171378231, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "HAM", "position": 5, "lap_time_sec": 91.90684776227798, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "RUS", "position": 6, "lap_time_sec": 91.771604386912, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "NOR", "position": 7, "lap_time_sec": 91.39716531484035, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "PIA", "position": 8, "lap_time_sec": 91.60069697933122, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "ALO", "position": 9, "lap_time_sec": 91.16388081772037, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 21, "driver": "STR", "position": 10, "lap_time_sec": 91.77575339543627, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "VER", "position": 1, "lap_time_sec": 92.0758763369505, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "PER", "position": 2, "lap_time_sec": 91.43079060554027, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "LEC", "position": 3, "lap_time_sec": 91.6507628976389, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "SAI", "position": 4, "lap_time_sec": 91.6962217017016, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "HAM", "position": 5, "lap_time_sec": 91.38676906478598, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "RUS", "position": 6, "lap_time_sec": 91.4121896420902, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "NOR", "position": 7, "lap_time_sec": 91.24748911706644, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "PIA", "position": 8, "lap_time_sec": 91.35903999281675, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "ALO", "position": 9, "lap_time_sec": 91.03551980404296, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 22, "driver": "STR", "position": 10, "lap_time_sec": 91.37479140897857, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "VER", "position": 1, "lap_time_sec": 91.88366298471205, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "PER", "position": 2, "lap_time_sec": 91.61294379996129, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "LEC", "position": 3, "lap_time_sec": 91.36626799904745, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "SAI", "position": 4, "lap_time_sec": 91.43220209119372, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "HAM", "position": 5, "lap_time_sec": 91.438062207257, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "RUS", "position": 6, "lap_time_sec": 91.49297494158347, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "NOR", "position": 7, "lap_time_sec": 91.38310684484414, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "PIA", "position": 8, "lap_time_sec": 91.71345645083021, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "ALO", "position": 9, "lap_time_sec": 91.58008774958984, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 23, "driver": "STR", "position": 10, "lap_time_sec": 91.64135751383556, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "VER", "position": 1, "lap_time_sec": 91.45603192657876, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "PER", "position": 2, "lap_time_sec": 91.58456844762675, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "LEC", "position": 3, "lap_time_sec": 91.80666695017213, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "SAI", "position": 4, "lap_time_sec": 91.13225774322208, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "HAM", "position": 5, "lap_time_sec": 91.53575590090448, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "RUS", "position": 6, "lap_time_sec": 91.3726137110218, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "NOR", "position": 7, "lap_time_sec": 92.08712966979904, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "PIA", "position": 8, "lap_time_sec": 91.9336874786341, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "ALO", "position": 9, "lap_time_sec": 91.78698170028261, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 24, "driver": "STR", "position": 10, "lap_time_sec": 91.64809851340597, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "VER", "position": 1, "lap_time_sec": 91.62552879608009, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "PER", "position": 2, "lap_time_sec": 91.7448659806491, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "LEC", "position": 3, "lap_time_sec": 91.38894476513941, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "SAI", "position": 4, "lap_time_sec": 91.58576305509817, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "HAM", "position": 5, "lap_time_sec": 91.66680958169209, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "RUS", "position": 6, "lap_time_sec": 91.69007618092223, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "NOR", "position": 7, "lap_time_sec": 91.48042650636266, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "PIA", "position": 8, "lap_time_sec": 91.37238812542937, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "ALO", "position": 9, "lap_time_sec": 90.86821391195105, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 25, "driver": "STR", "position": 10, "lap_time_sec": 91.99177644287803, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "VER", "position": 1, "lap_time_sec": 91.39316258258705, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "PER", "position": 2, "lap_time_sec": 91.24264106997285, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "LEC", "position": 3, "lap_time_sec": 91.7808087248835, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "SAI", "position": 4, "lap_time_sec": 91.44614980455749, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "HAM", "position": 5, "lap_time_sec": 91.75023195372374, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "RUS", "position": 6, "lap_time_sec": 91.55252749288505, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "NOR", "position": 7, "lap_time_sec": 91.7365452562632, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "PIA", "position": 8, "lap_time_sec": 91.58658725150408, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "ALO", "position": 9, "lap_time_sec": 91.91330202106329, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 26, "driver": "STR", "position": 10, "lap_time_sec": 91.47725656058141, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "VER", "position": 1, "lap_time_sec": 91.3432586163499, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "PER", "position": 2, "lap_time_sec": 91.4660895648274, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "LEC", "position": 3, "lap_time_sec": 91.51131725016499, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "SAI", "position": 4, "lap_time_sec": 91.43682908409632, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "HAM", "position": 5, "lap_time_sec": 91.91572567376863, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "RUS", "position": 6, "lap_time_sec": 92.03112966110677, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "NOR", "position": 7, "lap_time_sec": 91.58731479041009, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "PIA", "position": 8, "lap_time_sec": 91.53937310630128, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "ALO", "position": 9, "lap_time_sec": 91.96045735227744, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 27, "driver": "STR", "position": 10, "lap_time_sec": 91.51319022268675, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "VER", "position": 1, "lap_time_sec": 91.12956445213815, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "PER", "position": 2, "lap_time_sec": 91.2579939969257, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "LEC", "position": 3, "lap_time_sec": 91.78199336793045, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "SAI", "position": 4, "lap_time_sec": 91.37037303589467, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "HAM", "position": 5, "lap_time_sec": 91.35523942399583, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "RUS", "position": 6, "lap_time_sec": 91.30425430576906, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "NOR", "position": 7, "lap_time_sec": 91.13570826366222, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "PIA", "position": 8, "lap_time_sec": 92.04959452331907, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "ALO", "position": 9, "lap_time_sec": 91.55020853461218, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 28, "driver": "STR", "position": 10, "lap_time_sec": 91.54977039592534, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "VER", "position": 1, "lap_time_sec": 91.44636659913728, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "PER", "position": 2, "lap_time_sec": 91.96356102132657, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "LEC", "position": 3, "lap_time_sec": 91.35223415965169, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "SAI", "position": 4, "lap_time_sec": 91.66707209281167, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "HAM", "position": 5, "lap_time_sec": 92.04053044825, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "RUS", "position": 6, "lap_time_sec": 90.98027979480219, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "NOR", "position": 7, "lap_time_sec": 91.4952640664519, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "PIA", "position": 8, "lap_time_sec": 91.5508763889918, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "ALO", "position": 9, "lap_time_sec": 91.69681652662743, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 29, "driver": "STR", "position": 10, "lap_time_sec": 92.11131464853844, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "VER", "position": 1, "lap_time_sec": 91.78096437021117, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "PER", "position": 2, "lap_time_sec": 92.22277175509673, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "LEC", "position": 3, "lap_time_sec": 91.49186478797121, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "SAI", "position": 4, "lap_time_sec": 91.25764190335934, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "HAM", "position": 5, "lap_time_sec": 91.38086667652988, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "RUS", "position": 6, "lap_time_sec": 91.17787207046197, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "NOR", "position": 7, "lap_time_sec": 90.97931221417181, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "PIA", "position": 8, "lap_time_sec": 92.25551703145642, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "ALO", "position": 9, "lap_time_sec": 91.60617663846374, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 30, "driver": "STR", "position": 10, "lap_time_sec": 91.05941363664721, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "VER", "position": 1, "lap_time_sec": 91.61909354253022, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "PER", "position": 2, "lap_time_sec": 91.81085186254867, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "LEC", "position": 3, "lap_time_sec": 91.57583387360874, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "SAI", "position": 4, "lap_time_sec": 90.94618881982298, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "HAM", "position": 5, "lap_time_sec": 91.47741069230193, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "RUS", "position": 6, "lap_time_sec": 91.29559405753075, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "NOR", "position": 7, "lap_time_sec": 92.08806034470005, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "PIA", "position": 8, "lap_time_sec": 91.95481928034917, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "ALO", "position": 9, "lap_time_sec": 91.55882106115372, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 31, "driver": "STR", "position": 10, "lap_time_sec": 91.56938355105649, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "VER", "position": 1, "lap_time_sec": 91.45338100717437, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "PER", "position": 2, "lap_time_sec": 91.4235726197175, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "LEC", "position": 3, "lap_time_sec": 91.56753581044596, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "SAI", "position": 4, "lap_time_sec": 91.30366022645586, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "HAM", "position": 5, "lap_time_sec": 92.1656637047631, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "RUS", "position": 6, "lap_time_sec": 91.46377214841787, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "NOR", "position": 7, "lap_time_sec": 91.58661291533615, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "PIA", "position": 8, "lap_time_sec": 91.78240550145523, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "ALO", "position": 9, "lap_time_sec": 91.59753729499563, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 32, "driver": "STR", "position": 10, "lap_time_sec": 91.26126308849888, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "VER", "position": 1, "lap_time_sec": 91.50573631334021, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "PER", "position": 2, "lap_time_sec": 91.72523748331902, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "LEC", "position": 3, "lap_time_sec": 91.22199016811459, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "SAI", "position": 4, "lap_time_sec": 90.94462465386674, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "HAM", "position": 5, "lap_time_sec": 91.3481346408404, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "RUS", "position": 6, "lap_time_sec": 91.32041076066596, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "NOR", "position": 7, "lap_time_sec": 90.99276896240963, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "PIA", "position": 8, "lap_time_sec": 92.36274953783568, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "ALO", "position": 9, "lap_time_sec": 91.57953061423447, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 33, "driver": "STR", "position": 10, "lap_time_sec": 90.77253277551078, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "VER", "position": 1, "lap_time_sec": 91.29367591075804, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "PER", "position": 2, "lap_time_sec": 91.32054595380575, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "LEC", "position": 3, "lap_time_sec": 91.36841368128114, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "SAI", "position": 4, "lap_time_sec": 92.04570100863162, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "HAM", "position": 5, "lap_time_sec": 90.97070747917249, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "RUS", "position": 6, "lap_time_sec": 91.02289514055147, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "NOR", "position": 7, "lap_time_sec": 91.70953132608284, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "PIA", "position": 8, "lap_time_sec": 91.59022620007967, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "ALO", "position": 9, "lap_time_sec": 91.70063596452917, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 34, "driver": "STR", "position": 10, "lap_time_sec": 91.82833120222051, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "VER", "position": 1, "lap_time_sec": 91.775804746774, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "PER", "position": 2, "lap_time_sec": 91.73060799723457, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "LEC", "position": 3, "lap_time_sec": 91.13381505250629, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "SAI", "position": 4, "lap_time_sec": 91.35845747112934, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "HAM", "position": 5, "lap_time_sec": 91.32572956851335, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "RUS", "position": 6, "lap_time_sec": 91.592153054472, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "NOR", "position": 7, "lap_time_sec": 91.05771435089557, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "PIA", "position": 8, "lap_time_sec": 91.08569834628001, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "ALO", "position": 9, "lap_time_sec": 91.35751077152912, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 35, "driver": "STR", "position": 10, "lap_time_sec": 91.54940746376082, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "VER", "position": 1, "lap_time_sec": 91.03170862603176, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "PER", "position": 2, "lap_time_sec": 91.32779229907234, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "LEC", "position": 3, "lap_time_sec": 91.32544435349368, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "SAI", "position": 4, "lap_time_sec": 91.24820089803879, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "HAM", "position": 5, "lap_time_sec": 91.77708770365696, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "RUS", "position": 6, "lap_time_sec": 91.458903019162, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "NOR", "position": 7, "lap_time_sec": 90.87484567977658, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "PIA", "position": 8, "lap_time_sec": 91.53285451090939, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "ALO", "position": 9, "lap_time_sec": 91.60479189398251, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 36, "driver": "STR", "position": 10, "lap_time_sec": 91.9401157852355, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "VER", "position": 1, "lap_time_sec": 91.79853758246175, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "PER", "position": 2, "lap_time_sec": 91.57195308185419, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "LEC", "position": 3, "lap_time_sec": 90.90880284589831, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "SAI", "position": 4, "lap_time_sec": 91.21470202861357, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "HAM", "position": 5, "lap_time_sec": 91.47552653952674, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "RUS", "position": 6, "lap_time_sec": 91.43169403244465, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "NOR", "position": 7, "lap_time_sec": 91.15889030562684, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "PIA", "position": 8, "lap_time_sec": 91.59000930165101, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "ALO", "position": 9, "lap_time_sec": 91.17644603778938, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 37, "driver": "STR", "position": 10, "lap_time_sec": 91.86052216248419, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "VER", "position": 1, "lap_time_sec": 91.24914859252911, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "PER", "position": 2, "lap_time_sec": 91.91624775424489, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "LEC", "position": 3, "lap_time_sec": 90.97347350368005, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "SAI", "position": 4, "lap_time_sec": 91.58912657199205, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "HAM", "position": 5, "lap_time_sec": 91.73285890646258, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "RUS", "position": 6, "lap_time_sec": 91.72687517005895, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "NOR", "position": 7, "lap_time_sec": 91.27914279377077, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "PIA", "position": 8, "lap_time_sec": 91.30911468238888, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "ALO", "position": 9, "lap_time_sec": 91.49238891328771, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 38, "driver": "STR", "position": 10, "lap_time_sec": 91.53833592127992, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "VER", "position": 1, "lap_time_sec": 91.36262201552002, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "PER", "position": 2, "lap_time_sec": 91.50612465344776, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "LEC", "position": 3, "lap_time_sec": 91.42376316162328, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "SAI", "position": 4, "lap_time_sec": 90.9845957606389, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "HAM", "position": 5, "lap_time_sec": 91.82926761176391, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "RUS", "position": 6, "lap_time_sec": 91.60726935131837, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "NOR", "position": 7, "lap_time_sec": 91.57984318462894, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "PIA", "position": 8, "lap_time_sec": 91.478846976008, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "ALO", "position": 9, "lap_time_sec": 91.58491857593678, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 39, "driver": "STR", "position": 10, "lap_time_sec": 91.72309042504607, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "VER", "position": 1, "lap_time_sec": 92.11653360258153, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "PER", "position": 2, "lap_time_sec": 91.49329677785643, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "LEC", "position": 3, "lap_time_sec": 91.89030560589126, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "SAI", "position": 4, "lap_time_sec": 91.74610419276391, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "HAM", "position": 5, "lap_time_sec": 91.46884520261898, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "RUS", "position": 6, "lap_time_sec": 91.45095913820019, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "NOR", "position": 7, "lap_time_sec": 91.58744645789264, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "PIA", "position": 8, "lap_time_sec": 91.49529915409568, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "ALO", "position": 9, "lap_time_sec": 91.49910882249884, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 40, "driver": "STR", "position": 10, "lap_time_sec": 91.88870480651495, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "VER", "position": 1, "lap_time_sec": 91.43516649793355, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "PER", "position": 2, "lap_time_sec": 91.73030682950233, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "LEC", "position": 3, "lap_time_sec": 91.35531898240043, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "SAI", "position": 4, "lap_time_sec": 91.58352213987354, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "HAM", "position": 5, "lap_time_sec": 91.43756194617696, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "RUS", "position": 6, "lap_time_sec": 91.14304132640358, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "NOR", "position": 7, "lap_time_sec": 91.45233720215298, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "PIA", "position": 8, "lap_time_sec": 91.1310840046966, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "ALO", "position": 9, "lap_time_sec": 91.84526001371832, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 41, "driver": "STR", "position": 10, "lap_time_sec": 91.73140134865501, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "VER", "position": 1, "lap_time_sec": 91.72894520262544, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "PER", "position": 2, "lap_time_sec": 91.40008490007851, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "LEC", "position": 3, "lap_time_sec": 91.59611229908433, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "SAI", "position": 4, "lap_time_sec": 91.77904188015106, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "HAM", "position": 5, "lap_time_sec": 91.97309792040254, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "RUS", "position": 6, "lap_time_sec": 91.74008027882789, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "NOR", "position": 7, "lap_time_sec": 91.7756463551915, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "PIA", "position": 8, "lap_time_sec": 91.49021841791259, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "ALO", "position": 9, "lap_time_sec": 91.70816987826724, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 42, "driver": "STR", "position": 10, "lap_time_sec": 91.54507601499452, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "VER", "position": 1, "lap_time_sec": 91.88931155333098, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "PER", "position": 2, "lap_time_sec": 91.41536768661942, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "LEC", "position": 3, "lap_time_sec": 91.42464337357778, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "SAI", "position": 4, "lap_time_sec": 91.82000075478092, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "HAM", "position": 5, "lap_time_sec": 91.55451634854376, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "RUS", "position": 6, "lap_time_sec": 91.40902164448755, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "NOR", "position": 7, "lap_time_sec": 91.31633259629058, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "PIA", "position": 8, "lap_time_sec": 91.3472372002986, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "ALO", "position": 9, "lap_time_sec": 91.76517771817014, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 43, "driver": "STR", "position": 10, "lap_time_sec": 91.47432552046362, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "VER", "position": 1, "lap_time_sec": 91.92180773917966, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "PER", "position": 2, "lap_time_sec": 91.32247619700404, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "LEC", "position": 3, "lap_time_sec": 91.68622353604535, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "SAI", "position": 4, "lap_time_sec": 91.19596541188047, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "HAM", "position": 5, "lap_time_sec": 91.62356096793307, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "RUS", "position": 6, "lap_time_sec": 91.32066491541356, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "NOR", "position": 7, "lap_time_sec": 91.112437436817, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "PIA", "position": 8, "lap_time_sec": 91.54875079483381, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "ALO", "position": 9, "lap_time_sec": 91.57208319042138, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 44, "driver": "STR", "position": 10, "lap_time_sec": 91.22919806949983, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "VER", "position": 1, "lap_time_sec": 91.53531078908495, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "PER", "position": 2, "lap_time_sec": 91.25075469065222, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "LEC", "position": 3, "lap_time_sec": 91.35122683355996, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "SAI", "position": 4, "lap_time_sec": 91.61650122927921, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "HAM", "position": 5, "lap_time_sec": 91.63155280750982, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "RUS", "position": 6, "lap_time_sec": 91.7009024834908, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "NOR", "position": 7, "lap_time_sec": 91.62025895257996, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "PIA", "position": 8, "lap_time_sec": 91.32105625818382, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "ALO", "position": 9, "lap_time_sec": 91.63191047976902, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 45, "driver": "STR", "position": 10, "lap_time_sec": 91.39601637582888, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "VER", "position": 1, "lap_time_sec": 91.91814113061288, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "PER", "position": 2, "lap_time_sec": 92.03187606040535, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "LEC", "position": 3, "lap_time_sec": 91.39104446787341, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "SAI", "position": 4, "lap_time_sec": 91.39252116440325, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "HAM", "position": 5, "lap_time_sec": 91.0940901753387, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "RUS", "position": 6, "lap_time_sec": 91.50451075171758, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "NOR", "position": 7, "lap_time_sec": 91.72016730255596, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "PIA", "position": 8, "lap_time_sec": 91.18886501374766, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "ALO", "position": 9, "lap_time_sec": 91.97933064237264, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 46, "driver": "STR", "position": 10, "lap_time_sec": 91.6462248988612, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "VER", "position": 1, "lap_time_sec": 91.10136372959843, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "PER", "position": 2, "lap_time_sec": 91.7687119302268, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "LEC", "position": 3, "lap_time_sec": 91.60515765843002, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "SAI", "position": 4, "lap_time_sec": 91.55740673704675, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "HAM", "position": 5, "lap_time_sec": 91.8983144709436, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "RUS", "position": 6, "lap_time_sec": 91.44085843117372, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "NOR", "position": 7, "lap_time_sec": 91.46832950541946, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "PIA", "position": 8, "lap_time_sec": 92.33784689167342, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "ALO", "position": 9, "lap_time_sec": 91.58823477460354, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 47, "driver": "STR", "position": 10, "lap_time_sec": 91.51139250209386, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "VER", "position": 1, "lap_time_sec": 91.3021939903178, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "PER", "position": 2, "lap_time_sec": 91.56995988929725, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "LEC", "position": 3, "lap_time_sec": 91.43190491465967, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "SAI", "position": 4, "lap_time_sec": 91.19986558922616, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "HAM", "position": 5, "lap_time_sec": 91.56512568001696, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "RUS", "position": 6, "lap_time_sec": 91.77182748882628, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "NOR", "position": 7, "lap_time_sec": 91.19750669551766, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "PIA", "position": 8, "lap_time_sec": 91.67751866980248, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "ALO", "position": 9, "lap_time_sec": 91.48293740983361, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 48, "driver": "STR", "position": 10, "lap_time_sec": 91.92501110742211, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "VER", "position": 1, "lap_time_sec": 92.20056931267426, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "PER", "position": 2, "lap_time_sec": 91.52096405514315, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "LEC", "position": 3, "lap_time_sec": 91.09102406821238, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "SAI", "position": 4, "lap_time_sec": 91.58464714960742, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "HAM", "position": 5, "lap_time_sec": 92.08903142997106, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "RUS", "position": 6, "lap_time_sec": 91.21987723147646, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "NOR", "position": 7, "lap_time_sec": 91.52829775048522, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "PIA", "position": 8, "lap_time_sec": 91.32314758977547, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "ALO", "position": 9, "lap_time_sec": 91.7911035261603, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 49, "driver": "STR", "position": 10, "lap_time_sec": 91.16764742789256, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "VER", "position": 1, "lap_time_sec": 90.92171499482728, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "PER", "position": 2, "lap_time_sec": 91.456858507271, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "LEC", "position": 3, "lap_time_sec": 91.73992180706959, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "SAI", "position": 4, "lap_time_sec": 91.60722869197846, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "HAM", "position": 5, "lap_time_sec": 91.17771344621931, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "RUS", "position": 6, "lap_time_sec": 91.36077519181651, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "NOR", "position": 7, "lap_time_sec": 91.70640458003908, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "PIA", "position": 8, "lap_time_sec": 91.68821717057004, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "ALO", "position": 9, "lap_time_sec": 91.87922309679438, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 50, "driver": "STR", "position": 10, "lap_time_sec": 91.41612915928792, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "VER", "position": 1, "lap_time_sec": 91.40834105556924, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "PER", "position": 2, "lap_time_sec": 91.28777140191096, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "LEC", "position": 3, "lap_time_sec": 91.59551577956721, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "SAI", "position": 4, "lap_time_sec": 91.19573908654327, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "HAM", "position": 5, "lap_time_sec": 90.96114859765832, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "RUS", "position": 6, "lap_time_sec": 91.15566815860689, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "NOR", "position": 7, "lap_time_sec": 91.3966958704672, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "PIA", "position": 8, "lap_time_sec": 91.26360383779704, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "ALO", "position": 9, "lap_time_sec": 91.29661072761111, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 51, "driver": "STR", "position": 10, "lap_time_sec": 91.49658328438699, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "VER", "position": 1, "lap_time_sec": 91.80890461447251, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "PER", "position": 2, "lap_time_sec": 91.13433283957615, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "LEC", "position": 3, "lap_time_sec": 91.83828430870116, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "SAI", "position": 4, "lap_time_sec": 91.20825174099423, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "HAM", "position": 5, "lap_time_sec": 91.57385418608465, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "RUS", "position": 6, "lap_time_sec": 91.13596458437586, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "NOR", "position": 7, "lap_time_sec": 91.62694678161772, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "PIA", "position": 8, "lap_time_sec": 90.92829867068488, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "ALO", "position": 9, "lap_time_sec": 91.80575688612805, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 52, "driver": "STR", "position": 10, "lap_time_sec": 91.63582825111587, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "VER", "position": 1, "lap_time_sec": 92.12574770804912, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "PER", "position": 2, "lap_time_sec": 91.76224195190615, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "HAM", "position": 2, "lap_time_sec": 91.71872436402388, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "LEC", "position": 3, "lap_time_sec": 91.54071779889121, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "SAI", "position": 4, "lap_time_sec": 91.68225730739614, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "RUS", "position": 6, "lap_time_sec": 91.5266274775822, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "NOR", "position": 7, "lap_time_sec": 91.7673531219391, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "PIA", "position": 8, "lap_time_sec": 91.51586021683455, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "ALO", "position": 9, "lap_time_sec": 91.66236915018192, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 53, "driver": "STR", "position": 10, "lap_time_sec": 91.30926320353599, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "VER", "position": 1, "lap_time_sec": 91.34657774757886, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "PER", "position": 2, "lap_time_sec": 91.06907745587222, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "HAM", "position": 2, "lap_time_sec": 91.44931157682689, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "LEC", "position": 3, "lap_time_sec": 91.1775205302613, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "SAI", "position": 4, "lap_time_sec": 91.61119066422283, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "RUS", "position": 6, "lap_time_sec": 91.45970253440116, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "NOR", "position": 7, "lap_time_sec": 91.3455117553774, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "PIA", "position": 8, "lap_time_sec": 91.65031137854248, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "ALO", "position": 9, "lap_time_sec": 91.50903174447065, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 54, "driver": "STR", "position": 10, "lap_time_sec": 91.3929338362095, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "VER", "position": 1, "lap_time_sec": 90.96189214825664, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "PER", "position": 2, "lap_time_sec": 91.42303665076506, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "HAM", "position": 2, "lap_time_sec": 90.99613075538633, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "LEC", "position": 3, "lap_time_sec": 91.42266375099938, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "SAI", "position": 4, "lap_time_sec": 90.94624176903562, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "RUS", "position": 6, "lap_time_sec": 91.6152288445842, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "NOR", "position": 7, "lap_time_sec": 91.70204523729443, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "PIA", "position": 8, "lap_time_sec": 91.68614833134944, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "ALO", "position": 9, "lap_time_sec": 91.79799715815071, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 55, "driver": "STR", "position": 10, "lap_time_sec": 91.23287676893396, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "VER", "position": 1, "lap_time_sec": 91.11078407804665, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "PER", "position": 2, "lap_time_sec": 91.11958156432819, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "HAM", "position": 2, "lap_time_sec": 91.438351719345, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "LEC", "position": 3, "lap_time_sec": 91.41676481768033, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "SAI", "position": 4, "lap_time_sec": 91.97427160225342, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "RUS", "position": 6, "lap_time_sec": 90.98561005294509, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "NOR", "position": 7, "lap_time_sec": 91.13658647151665, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "PIA", "position": 8, "lap_time_sec": 91.21756715573864, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "ALO", "position": 9, "lap_time_sec": 91.26182071020555, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 56, "driver": "STR", "position": 10, "lap_time_sec": 91.42431959548932, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "VER", "position": 1, "lap_time_sec": 91.49864434536607, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "PER", "position": 2, "lap_time_sec": 91.63745391121967, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "HAM", "position": 2, "lap_time_sec": 91.45239442013965, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "LEC", "position": 3, "lap_time_sec": 91.48241406362501, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "SAI", "position": 4, "lap_time_sec": 91.8100313429508, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "RUS", "position": 6, "lap_time_sec": 90.83218086426488, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "NOR", "position": 7, "lap_time_sec": 90.93333606353006, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "PIA", "position": 8, "lap_time_sec": 91.20077716819345, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "ALO", "position": 9, "lap_time_sec": 91.75730560457592, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 57, "driver": "STR", "position": 10, "lap_time_sec": 91.39643816387525, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "VER", "position": 1, "lap_time_sec": 91.47487085027078, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "PER", "position": 2, "lap_time_sec": 91.30911573860239, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "LEC", "position": 3, "lap_time_sec": 91.28740422792445, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "SAI", "position": 4, "lap_time_sec": 91.46060300120473, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "HAM", "position": 5, "lap_time_sec": 91.50266275786197, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "RUS", "position": 6, "lap_time_sec": 91.43692172229701, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "NOR", "position": 7, "lap_time_sec": 91.74334867685988, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "PIA", "position": 8, "lap_time_sec": 91.14185944125433, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "ALO", "position": 9, "lap_time_sec": 90.89214431959512, "compound": "MEDIUM", "track_status": "Green"}, {"lap_number": 58, "driver": "STR", "position": 10, "lap_time_sec": 92.01644359214359, "compound": "MEDIUM", "track_status": "Green"}], "h2h": [{"season": 2021, "constructor_name": "Aston Martin", "driver_a_code": "ALO", "driver_b_code": "STR", "races_compared": 0, "quali_a_ahead": 0, "quali_b_ahead": 0, "race_a_ahead": 0, "race_b_ahead": 0, "avg_race_pace_gap_a_minus_b": 0.0538, "dnfs_a": 0, "dnfs_b": 0}, {"season": 2021, "constructor_name": "Ferrari", "driver_a_code": "LEC", "driver_b_code": "SAI", "races_compared": 0, "quali_a_ahead": 0, "quali_b_ahead": 0, "race_a_ahead": 0, "race_b_ahead": 0, "avg_race_pace_gap_a_minus_b": -0.0441, "dnfs_a": 0, "dnfs_b": 0}, {"season": 2021, "constructor_name": "McLaren", "driver_a_code": "NOR", "driver_b_code": "PIA", "races_compared": 0, "quali_a_ahead": 0, "quali_b_ahead": 0, "race_a_ahead": 0, "race_b_ahead": 0, "avg_race_pace_gap_a_minus_b": -0.0679, "dnfs_a": 0, "dnfs_b": 0}, {"season": 2021, "constructor_name": "Mercedes", "driver_a_code": "HAM", "driver_b_code": "RUS", "races_compared": 0, "quali_a_ahead": 0, "quali_b_ahead": 0, "race_a_ahead": 0, "race_b_ahead": 0, "avg_race_pace_gap_a_minus_b": 0.0938, "dnfs_a": 0, "dnfs_b": 0}, {"season": 2021, "constructor_name": "Red Bull Racing", "driver_a_code": "PER", "driver_b_code": "VER", "races_compared": 0, "quali_a_ahead": 0, "quali_b_ahead": 0, "race_a_ahead": 0, "race_b_ahead": 0, "avg_race_pace_gap_a_minus_b": 0.0393, "dnfs_a": 0, "dnfs_b": 0}, {"season": 2022, "constructor_name": "Aston Martin", "driver_a_code": "ALO", "driver_b_code": "STR", "races_compared": 24, "quali_a_ahead": 12, "quali_b_ahead": 12, "race_a_ahead": 10, "race_b_ahead": 10, "avg_race_pace_gap_a_minus_b": 0.0069, "dnfs_a": 1, "dnfs_b": 1}, {"season": 2022, "constructor_name": "Ferrari", "driver_a_code": "LEC", "driver_b_code": "SAI", "races_compared": 24, "quali_a_ahead": 15, "quali_b_ahead": 9, "race_a_ahead": 13, "race_b_ahead": 5, "avg_race_pace_gap_a_minus_b": -0.0224, "dnfs_a": 1, "dnfs_b": 4}, {"season": 2022, "constructor_name": "McLaren", "driver_a_code": "NOR", "driver_b_code": "PIA", "races_compared": 24, "quali_a_ahead": 10, "quali_b_ahead": 14, "race_a_ahead": 9, "race_b_ahead": 12, "avg_race_pace_gap_a_minus_b": 0.0525, "dnfs_a": 2, "dnfs_b": 1}, {"season": 2022, "constructor_name": "Mercedes", "driver_a_code": "HAM", "driver_b_code": "RUS", "races_compared": 24, "quali_a_ahead": 17, "quali_b_ahead": 7, "race_a_ahead": 12, "race_b_ahead": 5, "avg_race_pace_gap_a_minus_b": -0.0716, "dnfs_a": 2, "dnfs_b": 4}, {"season": 2022, "constructor_name": "Red Bull Racing", "driver_a_code": "PER", "driver_b_code": "VER", "races_compared": 24, "quali_a_ahead": 7, "quali_b_ahead": 17, "race_a_ahead": 9, "race_b_ahead": 12, "avg_race_pace_gap_a_minus_b": 0.0843, "dnfs_a": 1, "dnfs_b": 2}, {"season": 2023, "constructor_name": "Aston Martin", "driver_a_code": "ALO", "driver_b_code": "STR", "races_compared": 24, "quali_a_ahead": 13, "quali_b_ahead": 11, "race_a_ahead": 9, "race_b_ahead": 9, "avg_race_pace_gap_a_minus_b": -0.0448, "dnfs_a": 0, "dnfs_b": 4}, {"season": 2023, "constructor_name": "Ferrari", "driver_a_code": "LEC", "driver_b_code": "SAI", "races_compared": 24, "quali_a_ahead": 6, "quali_b_ahead": 18, "race_a_ahead": 5, "race_b_ahead": 16, "avg_race_pace_gap_a_minus_b": 0.0934, "dnfs_a": 1, "dnfs_b": 0}, {"season": 2023, "constructor_name": "McLaren", "driver_a_code": "NOR", "driver_b_code": "PIA", "races_compared": 24, "quali_a_ahead": 13, "quali_b_ahead": 11, "race_a_ahead": 10, "race_b_ahead": 7, "avg_race_pace_gap_a_minus_b": -0.0437, "dnfs_a": 1, "dnfs_b": 3}, {"season": 2023, "constructor_name": "Mercedes", "driver_a_code": "HAM", "driver_b_code": "RUS", "races_compared": 24, "quali_a_ahead": 14, "quali_b_ahead": 10, "race_a_ahead": 12, "race_b_ahead": 10, "avg_race_pace_gap_a_minus_b": -0.0381, "dnfs_a": 1, "dnfs_b": 0}, {"season": 2023, "constructor_name": "Red Bull Racing", "driver_a_code": "PER", "driver_b_code": "VER", "races_compared": 24, "quali_a_ahead": 14, "quali_b_ahead": 10, "race_a_ahead": 12, "race_b_ahead": 7, "avg_race_pace_gap_a_minus_b": -0.0684, "dnfs_a": 0, "dnfs_b": 2}, {"season": 2024, "constructor_name": "Aston Martin", "driver_a_code": "ALO", "driver_b_code": "STR", "races_compared": 24, "quali_a_ahead": 12, "quali_b_ahead": 12, "race_a_ahead": 10, "race_b_ahead": 9, "avg_race_pace_gap_a_minus_b": -0.035, "dnfs_a": 3, "dnfs_b": 1}, {"season": 2024, "constructor_name": "Ferrari", "driver_a_code": "LEC", "driver_b_code": "SAI", "races_compared": 24, "quali_a_ahead": 10, "quali_b_ahead": 14, "race_a_ahead": 7, "race_b_ahead": 13, "avg_race_pace_gap_a_minus_b": 0.0397, "dnfs_a": 2, "dnfs_b": 1}, {"season": 2024, "constructor_name": "McLaren", "driver_a_code": "NOR", "driver_b_code": "PIA", "races_compared": 24, "quali_a_ahead": 10, "quali_b_ahead": 14, "race_a_ahead": 9, "race_b_ahead": 12, "avg_race_pace_gap_a_minus_b": 0.0685, "dnfs_a": 0, "dnfs_b": 1}, {"season": 2024, "constructor_name": "Mercedes", "driver_a_code": "HAM", "driver_b_code": "RUS", "races_compared": 24, "quali_a_ahead": 13, "quali_b_ahead": 11, "race_a_ahead": 10, "race_b_ahead": 12, "avg_race_pace_gap_a_minus_b": 0.0001, "dnfs_a": 1, "dnfs_b": 0}, {"season": 2024, "constructor_name": "Red Bull Racing", "driver_a_code": "PER", "driver_b_code": "VER", "races_compared": 24, "quali_a_ahead": 16, "quali_b_ahead": 8, "race_a_ahead": 13, "race_b_ahead": 7, "avg_race_pace_gap_a_minus_b": -0.087, "dnfs_a": 3, "dnfs_b": 0}], "pole_to_win": [{"circuit": "Monaco", "races": 12, "conversion_pct": 75.0}, {"circuit": "Spa", "races": 12, "conversion_pct": 66.7}, {"circuit": "Hungary", "races": 12, "conversion_pct": 66.7}, {"circuit": "Monza", "races": 12, "conversion_pct": 41.7}, {"circuit": "Silverstone", "races": 12, "conversion_pct": 33.3}, {"circuit": "Bahrain", "races": 12, "conversion_pct": 33.3}], "overtaking": [{"circuit": "Bahrain", "drs_zones": 3, "races": 12, "swing": 12.0}, {"circuit": "Silverstone", "drs_zones": 2, "races": 12, "swing": 11.6}, {"circuit": "Spa", "drs_zones": 2, "races": 12, "swing": 11.1}, {"circuit": "Hungary", "drs_zones": 1, "races": 12, "swing": 9.8}, {"circuit": "Monza", "drs_zones": 2, "races": 12, "swing": 9.8}, {"circuit": "Monaco", "drs_zones": 1, "races": 12, "swing": 9.2}]};
+
+/* ====================================================================
+   F1 Strategy Intelligence Dashboard
+   ==================================================================== */
+
+const TEAM_COLORS = {
+  'Red Bull Racing': '#1E3A8A',
+  'Red Bull': '#1E3A8A',
+  'Mercedes': '#00D2BE',
+  'Ferrari': '#DC143C',
+  'McLaren': '#FF8700',
+  'Aston Martin': '#006F62',
+  'Alpine': '#0090FF',
+  'Williams': '#6692FF',
+  'RB': '#4781D7',
+  'AlphaTauri': '#4781D7',
+  'Toro Rosso': '#5B79B0',
+  'Stake': '#52E252',
+  'Alfa Romeo': '#900000',
+  'Alfa Romeo Racing': '#900000',
+  'Kick Sauber': '#52E252',
+  'Sauber': '#9B0000',
+  'Haas F1 Team': '#B6BABD',
+  'Haas': '#B6BABD',
+  'Racing Point': '#F596C8',
+  'Renault': '#FFF500',
+  'Force India': '#F596C8',
+};
+
+function teamColor(name) {
+  return TEAM_COLORS[name] || '#8B98A5';
+}
+
+const SEASONS = [...new Set(DATA.season_summary.map(r => r.year))].sort();
+
+/* ---------- Chart.js global defaults ---------- */
+Chart.defaults.font.family = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#8B98A5';
+Chart.defaults.borderColor = '#2A3340';
+Chart.defaults.scale.grid.color = '#2A3340';
+Chart.defaults.scale.grid.borderColor = '#2A3340';
+
+const charts = {};
+
+/* ====================================================================
+   NAVIGATION
+   ==================================================================== */
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    const page = el.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+
+    Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+  });
+});
+
+/* ====================================================================
+   POPULATE SEASON DROPDOWNS
+   ==================================================================== */
+['season-overview', 'season-constructor', 'season-dna', 'season-h2h'].forEach(id => {
+  const sel = document.getElementById(id);
+  SEASONS.forEach(yr => {
+    const opt = document.createElement('option');
+    opt.value = yr;
+    opt.textContent = yr;
+    sel.appendChild(opt);
+  });
+  sel.value = SEASONS[SEASONS.length - 1];
+});
+
+/* ====================================================================
+   PAGE 1: SEASON OVERVIEW
+   ==================================================================== */
+function renderOverview(season) {
+  season = +season;
+
+  const summary = DATA.season_summary.find(s => s.year === season);
+  const driverStandings = DATA.driver_standings.filter(s => s.season === season);
+  const teamStandings = DATA.constructor_standings.filter(s => s.season === season);
+
+  // KPIs
+  const kpis = document.getElementById('overview-kpis');
+  kpis.innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Champion</div>
+      <div class="kpi-value kpi-accent">${summary.driver_champion}</div>
+      <div class="kpi-sub">${Math.round(summary.driver_points)} points</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Constructor</div>
+      <div class="kpi-value">${summary.team_champion}</div>
+      <div class="kpi-sub">${Math.round(summary.team_points)} points</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Races</div>
+      <div class="kpi-value">${summary.races}</div>
+      <div class="kpi-sub">${summary.circuits} unique circuits</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Drivers</div>
+      <div class="kpi-value">${driverStandings.length}</div>
+      <div class="kpi-sub">on the grid this season</div>
+    </div>`;
+
+  // Driver standings table
+  const dt = document.getElementById('overview-drivers-table');
+  dt.innerHTML = `<table class="data">
+    <thead><tr>
+      <th></th><th>Driver</th><th>Team</th>
+      <th class="num">Pts</th><th class="num">W</th><th class="num">P</th>
+    </tr></thead>
+    <tbody>${driverStandings.slice(0, 10).map((r, i) => `
+      <tr>
+        <td class="rank-cell">${i+1}</td>
+        <td class="driver-cell">${r.driver}</td>
+        <td><span class="team-dot" style="background:${teamColor(r.team)}"></span>${r.team}</td>
+        <td class="num">${Math.round(r.points)}</td>
+        <td class="num">${r.wins}</td>
+        <td class="num">${r.podiums}</td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+
+  // Team standings table
+  const tt = document.getElementById('overview-teams-table');
+  tt.innerHTML = `<table class="data">
+    <thead><tr><th></th><th>Team</th><th class="num">Pts</th><th class="num">W</th></tr></thead>
+    <tbody>${teamStandings.map((r, i) => `
+      <tr>
+        <td class="rank-cell">${i+1}</td>
+        <td><span class="team-dot" style="background:${teamColor(r.team)}"></span>${r.team}</td>
+        <td class="num">${Math.round(r.points)}</td>
+        <td class="num">${r.wins}</td>
+      </tr>`).join('')}</tbody>
+  </table>`;
+
+  // All-time wins chart (computed once across all seasons)
+  if (!charts.allTimeWins) {
+    const wins = {};
+    DATA.driver_standings.forEach(r => {
+      wins[r.driver] = (wins[r.driver] || 0) + r.wins;
+    });
+    const top = Object.entries(wins).filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]).slice(0, 12);
+
+    const ctx = document.getElementById('chart-alltime-wins');
+    charts.allTimeWins = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top.map(([k]) => k),
+        datasets: [{
+          label: 'Wins',
+          data: top.map(([, v]) => v),
+          backgroundColor: '#E10600',
+          borderRadius: 3,
+          barThickness: 22,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: '#2A3340' }, ticks: { stepSize: 5 } },
+          x: { grid: { display: false } },
+        },
+      },
+    });
+  }
+}
+
+document.getElementById('season-overview').addEventListener('change', e =>
+  renderOverview(e.target.value));
+
+/* ====================================================================
+   PAGE 2: CONSTRUCTOR BATTLE
+   ==================================================================== */
+function renderConstructor(season) {
+  season = +season;
+
+  const standings = DATA.constructor_standings.filter(s => s.season === season);
+  const evo = DATA.championship_evo.filter(s => s.year === season);
+  const reliab = DATA.reliability.filter(s => s.season === season);
+
+  const kpis = document.getElementById('constructor-kpis');
+  const totalWins = standings.reduce((a, s) => a + s.wins, 0);
+  const lead = standings[0];
+  const second = standings[1];
+  const margin = lead && second ? Math.round(lead.points - second.points) : 0;
+  kpis.innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Champion</div>
+      <div class="kpi-value">${lead?.team || '—'}</div>
+      <div class="kpi-sub">${Math.round(lead?.points || 0)} pts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Margin</div>
+      <div class="kpi-value">${margin}</div>
+      <div class="kpi-sub">over 2nd place</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Wins shared</div>
+      <div class="kpi-value">${totalWins}</div>
+      <div class="kpi-sub">across ${standings.filter(s => s.wins > 0).length} teams</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Most reliable</div>
+      <div class="kpi-value" style="font-size: 16px;">${reliab[0]?.team || '—'}</div>
+      <div class="kpi-sub">${reliab[0]?.dnf_rate || 0}% DNF</div>
+    </div>`;
+
+  // Evolution chart — group by team
+  const teams = [...new Set(evo.map(r => r.team))];
+  const rounds = [...new Set(evo.map(r => r.round))].sort((a, b) => a - b);
+  const datasets = teams.map(team => ({
+    label: team,
+    data: rounds.map(rnd => {
+      const found = evo.find(e => e.team === team && e.round === rnd);
+      return found ? Math.round(found.cum_pts) : null;
+    }),
+    borderColor: teamColor(team),
+    backgroundColor: teamColor(team) + '22',
+    borderWidth: 2,
+    pointRadius: 0,
+    pointHoverRadius: 4,
+    tension: 0.2,
+  })).sort((a, b) => (b.data[b.data.length - 1] || 0) - (a.data[a.data.length - 1] || 0))
+    .slice(0, 8); // top 8 teams only for legibility
+
+  if (charts.evo) charts.evo.destroy();
+  charts.evo = new Chart(document.getElementById('chart-evo'), {
+    type: 'line',
+    data: { labels: rounds.map(r => 'R' + r), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 6 } } },
+      scales: {
+        y: { title: { display: true, text: 'Points', color: '#5A6675' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  // Reliability chart
+  if (charts.reliab) charts.reliab.destroy();
+  const reliabSorted = [...reliab].sort((a, b) => a.dnf_rate - b.dnf_rate);
+  charts.reliab = new Chart(document.getElementById('chart-reliability'), {
+    type: 'bar',
+    data: {
+      labels: reliabSorted.map(r => r.team),
+      datasets: [{
+        label: 'DNF %',
+        data: reliabSorted.map(r => r.dnf_rate),
+        backgroundColor: reliabSorted.map(r => teamColor(r.team)),
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v + '%' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  // Wins doughnut
+  if (charts.winsShare) charts.winsShare.destroy();
+  const winners = standings.filter(s => s.wins > 0);
+  charts.winsShare = new Chart(document.getElementById('chart-wins-share'), {
+    type: 'doughnut',
+    data: {
+      labels: winners.map(w => w.team),
+      datasets: [{
+        data: winners.map(w => w.wins),
+        backgroundColor: winners.map(w => teamColor(w.team)),
+        borderColor: '#1C232C',
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, padding: 8 } },
+      },
+    },
+  });
+}
+
+document.getElementById('season-constructor').addEventListener('change', e =>
+  renderConstructor(e.target.value));
+
+/* ====================================================================
+   PAGE 3: DRIVER DNA
+   ==================================================================== */
+function renderDNA(season) {
+  season = +season;
+  const fps = DATA.fingerprints.filter(f => f.season === season);
+
+  // Populate driver dropdowns
+  const d1 = document.getElementById('dna-driver-1');
+  const d2 = document.getElementById('dna-driver-2');
+  d1.innerHTML = ''; d2.innerHTML = '';
+  fps.forEach(f => {
+    const opt = `<option value="${f.driver_code}">${f.driver_code} (${f.constructor_name})</option>`;
+    d1.insertAdjacentHTML('beforeend', opt);
+    d2.insertAdjacentHTML('beforeend', opt);
+  });
+  if (fps[0]) d1.value = fps[0].driver_code;
+  if (fps[1]) d2.value = fps[1].driver_code;
+
+  function drawRadar() {
+    const a = fps.find(f => f.driver_code === d1.value);
+    const b = fps.find(f => f.driver_code === d2.value);
+    if (!a || !b) return;
+
+    const labels = ['Race pace', 'Consistency', 'Quali pace', 'Racecraft', 'Tire mgmt', 'Wet perf'];
+    const dataA = [a.score_race_pace, a.score_consistency, a.score_quali_pace, a.score_racecraft, a.score_tire_mgmt, a.score_wet_perf]
+      .map(v => v ?? 0);
+    const dataB = [b.score_race_pace, b.score_consistency, b.score_quali_pace, b.score_racecraft, b.score_tire_mgmt, b.score_wet_perf]
+      .map(v => v ?? 0);
+
+    if (charts.radar) charts.radar.destroy();
+    charts.radar = new Chart(document.getElementById('chart-radar'), {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [
+          { label: a.driver_code, data: dataA, borderColor: '#E10600', backgroundColor: '#E1060022', pointBackgroundColor: '#E10600', borderWidth: 2 },
+          { label: b.driver_code, data: dataB, borderColor: '#4C8DFF', backgroundColor: '#4C8DFF22', pointBackgroundColor: '#4C8DFF', borderWidth: 2 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 12 } } },
+        scales: {
+          r: {
+            min: 0, max: 100,
+            angleLines: { color: '#2A3340' },
+            grid: { color: '#2A3340' },
+            pointLabels: { color: '#8B98A5', font: { size: 11 } },
+            ticks: { display: false, stepSize: 25 },
+          },
+        },
+      },
+    });
+  }
+
+  d1.addEventListener('change', drawRadar);
+  d2.addEventListener('change', drawRadar);
+  drawRadar();
+
+  // Leaderboard
+  const lb = document.getElementById('dna-leaderboard');
+  const sorted = [...fps].filter(f => f.score_overall != null).sort((a, b) => b.score_overall - a.score_overall);
+  lb.innerHTML = `<table class="data"><tbody>${sorted.slice(0, 10).map((f, i) => `
+    <tr>
+      <td class="rank-cell">${i+1}</td>
+      <td class="driver-cell">${f.driver_code}</td>
+      <td><span class="team-dot" style="background:${teamColor(f.constructor_name)}"></span>${f.constructor_name}</td>
+      <td>
+        <span class="score-bar"><span class="score-fill" style="width:${f.score_overall}%"></span></span>
+        <span class="num" style="color: var(--text-secondary);">${(f.score_overall || 0).toFixed(0)}</span>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+
+  // Consistency chart
+  const cons = DATA.consistency.filter(c => c.season === season).slice(0, 15);
+  if (charts.consistency) charts.consistency.destroy();
+  charts.consistency = new Chart(document.getElementById('chart-consistency'), {
+    type: 'bar',
+    data: {
+      labels: cons.map(c => c.driver),
+      datasets: [{
+        label: 'Stint stddev',
+        data: cons.map(c => c.score),
+        backgroundColor: '#E10600',
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v.toFixed(2) + 's' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+}
+document.getElementById('season-dna').addEventListener('change', e => renderDNA(e.target.value));
+
+/* ====================================================================
+   PAGE 4: HEAD-TO-HEAD
+   ==================================================================== */
+function renderH2H(season) {
+  season = +season;
+  const pairings = DATA.h2h.filter(h => h.season === season);
+  const container = document.getElementById('h2h-pairings');
+
+  container.innerHTML = pairings.map(p => {
+    const total = p.race_a_ahead + p.race_b_ahead || 1;
+    const aPct = (p.race_a_ahead / total) * 100;
+    const totalQ = p.quali_a_ahead + p.quali_b_ahead || 1;
+    const aQPct = (p.quali_a_ahead / totalQ) * 100;
+    const paceGap = p.avg_race_pace_gap_a_minus_b;
+
+    return `
+      <div class="card" style="margin-bottom: 12px;">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${p.constructor_name}</div>
+            <div class="card-subtitle">${p.races_compared} races compared</div>
+          </div>
+          <div style="font-size: 22px; font-weight: 600; color: var(--text-primary); letter-spacing: 0.5px;">
+            <span style="color:${aPct >= 50 ? 'var(--accent-red)' : 'var(--text-tertiary)'}">${p.driver_a_code}</span>
+            <span style="color: var(--text-tertiary); margin: 0 8px;">vs</span>
+            <span style="color:${aPct < 50 ? 'var(--accent-red)' : 'var(--text-tertiary)'}">${p.driver_b_code}</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Race finishes</div>
+            <div style="display:flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+              <div style="background: var(--accent-red); width: ${aPct}%; display:flex; align-items:center; justify-content:flex-start; padding-left: 8px; font-size: 11px; font-weight: 600; color: white;">${p.race_a_ahead}</div>
+              <div style="background: var(--bg-card-hover); width: ${100-aPct}%; display:flex; align-items:center; justify-content:flex-end; padding-right: 8px; font-size: 11px; font-weight: 600; color: var(--text-primary);">${p.race_b_ahead}</div>
+            </div>
+            <div style="font-size: 10px; color: var(--text-tertiary);">${p.driver_a_code} ${p.race_a_ahead} — ${p.race_b_ahead} ${p.driver_b_code}</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px;">Qualifying</div>
+            <div style="display:flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 4px;">
+              <div style="background: var(--accent-blue); width: ${aQPct}%; display:flex; align-items:center; padding-left: 8px; font-size: 11px; font-weight: 600; color: white;">${p.quali_a_ahead}</div>
+              <div style="background: var(--bg-card-hover); width: ${100-aQPct}%; display:flex; align-items:center; justify-content:flex-end; padding-right: 8px; font-size: 11px; font-weight: 600; color: var(--text-primary);">${p.quali_b_ahead}</div>
+            </div>
+            <div style="font-size: 10px; color: var(--text-tertiary);">${p.driver_a_code} ${p.quali_a_ahead} — ${p.quali_b_ahead} ${p.driver_b_code}</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap: 24px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+          <div>
+            <div style="font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em;">Pace gap</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px; color: var(--text-primary);">
+              ${paceGap !== null && paceGap !== undefined ? (paceGap > 0 ? '+' : '') + paceGap.toFixed(3) + 's' : '—'}
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 10px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em;">DNFs</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px; color: var(--text-primary);">
+              ${p.dnfs_a} / ${p.dnfs_b}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }).join('') || '<div class="empty-state">No matchups for this season.</div>';
+}
+document.getElementById('season-h2h').addEventListener('change', e => renderH2H(e.target.value));
+
+/* ====================================================================
+   PAGE 5: CIRCUIT DNA
+   ==================================================================== */
+function renderCircuits() {
+  const pole = [...DATA.pole_to_win].sort((a, b) => b.conversion_pct - a.conversion_pct).slice(0, 18);
+  const ot = [...DATA.overtaking].sort((a, b) => b.swing - a.swing).slice(0, 18);
+  const tireDeg = [...DATA.tire_deg].filter(t => t.deg_per_lap !== null).slice(0, 15);
+
+  if (charts.pole) charts.pole.destroy();
+  charts.pole = new Chart(document.getElementById('chart-pole'), {
+    type: 'bar',
+    data: {
+      labels: pole.map(p => p.circuit),
+      datasets: [{
+        label: 'Conversion %',
+        data: pole.map(p => p.conversion_pct),
+        backgroundColor: '#4C8DFF',
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => v + '%' }, grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  if (charts.overtaking) charts.overtaking.destroy();
+  charts.overtaking = new Chart(document.getElementById('chart-overtaking'), {
+    type: 'bar',
+    data: {
+      labels: ot.map(o => o.circuit),
+      datasets: [{
+        label: 'Position swings',
+        data: ot.map(o => o.swing),
+        backgroundColor: '#E10600',
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#2A3340' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  if (charts.tireDeg) charts.tireDeg.destroy();
+  charts.tireDeg = new Chart(document.getElementById('chart-tire-deg'), {
+    type: 'bar',
+    data: {
+      labels: tireDeg.map(t => t.circuit_name),
+      datasets: [{
+        label: 'Degradation (s/lap)',
+        data: tireDeg.map(t => t.deg_per_lap),
+        backgroundColor: '#F4B400',
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: v => v.toFixed(2) + 's' }, grid: { color: '#2A3340' } },
+      },
+    },
+  });
+}
+
+/* ====================================================================
+   PAGE 6: RACE REPLAY (2021 Abu Dhabi)
+   ==================================================================== */
+function renderReplay() {
+  const laps = DATA.abu_dhabi_2021;
+  const maxLap = Math.max(...laps.map(l => l.lap_number));
+  const drivers = [...new Set(laps.map(l => l.driver))];
+
+  document.getElementById('replay-slider').max = maxLap;
+  document.querySelector('.lap-counter').innerHTML = `Lap <strong id="replay-lap">1</strong> / ${maxLap}`;
+
+  // Build position-per-lap matrix
+  const posByDriver = {};
+  drivers.forEach(d => {
+    posByDriver[d] = Array(maxLap + 1).fill(null);
+  });
+  laps.forEach(l => {
+    if (posByDriver[l.driver]) {
+      posByDriver[l.driver][l.lap_number] = l.position;
+    }
+  });
+
+  // Color by 2021 team — VER red, HAM teal, others muted
+  const driverColor = (d) => {
+    if (d === 'VER') return '#E10600';
+    if (d === 'HAM') return '#00D2BE';
+    if (d === 'PER') return '#1E3A8A';
+    if (d === 'BOT') return '#00B0A4';
+    if (d === 'SAI' || d === 'LEC') return '#DC143C';
+    if (d === 'NOR' || d === 'RIC') return '#FF8700';
+    return '#5A6675';
+  };
+
+  if (charts.replay) charts.replay.destroy();
+  charts.replay = new Chart(document.getElementById('chart-replay'), {
+    type: 'line',
+    data: {
+      labels: Array.from({length: maxLap}, (_, i) => 'L' + (i + 1)),
+      datasets: drivers.map(d => ({
+        label: d,
+        data: posByDriver[d].slice(1),
+        borderColor: driverColor(d),
+        backgroundColor: 'transparent',
+        borderWidth: (d === 'VER' || d === 'HAM') ? 2.5 : 1.2,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 6, font: { size: 10 } } } },
+      scales: {
+        y: { reverse: true, min: 0.5, max: 20.5, ticks: { stepSize: 1, callback: v => 'P' + v },
+             title: { display: true, text: 'Position', color: '#5A6675' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+
+  function updateLap(lap) {
+    document.getElementById('replay-lap').textContent = lap;
+
+    // Build standings at this lap
+    const atLap = drivers.map(d => ({
+      driver: d,
+      position: posByDriver[d][lap],
+    })).filter(d => d.position !== null).sort((a, b) => a.position - b.position);
+
+    document.getElementById('replay-standings').innerHTML = `<table class="data"><tbody>${
+      atLap.map(d => `
+        <tr>
+          <td class="rank-cell">P${d.position}</td>
+          <td class="driver-cell" style="color:${driverColor(d.driver)}">${d.driver}</td>
+        </tr>`).join('')
+    }</tbody></table>`;
+  }
+
+  const slider = document.getElementById('replay-slider');
+  slider.value = 1;
+  updateLap(1);
+  slider.addEventListener('input', e => updateLap(+e.target.value));
+
+  let playInterval = null;
+  document.getElementById('replay-play').addEventListener('click', () => {
+    if (playInterval) {
+      clearInterval(playInterval);
+      playInterval = null;
+      document.getElementById('replay-play').textContent = '▶ Play';
+      return;
+    }
+    document.getElementById('replay-play').textContent = '⏸ Pause';
+    playInterval = setInterval(() => {
+      let cur = +slider.value;
+      if (cur >= maxLap) {
+        clearInterval(playInterval);
+        playInterval = null;
+        document.getElementById('replay-play').textContent = '▶ Play';
+        return;
+      }
+      slider.value = cur + 1;
+      updateLap(cur + 1);
+    }, 200);
+  });
+
+  document.getElementById('replay-reset').addEventListener('click', () => {
+    if (playInterval) { clearInterval(playInterval); playInterval = null; document.getElementById('replay-play').textContent = '▶ Play'; }
+    slider.value = 1;
+    updateLap(1);
+  });
+}
+
+/* ====================================================================
+   INIT
+   ==================================================================== */
+renderOverview(SEASONS[SEASONS.length - 1]);
+renderConstructor(SEASONS[SEASONS.length - 1]);
+renderDNA(SEASONS[SEASONS.length - 1]);
+renderH2H(SEASONS[SEASONS.length - 1]);
+renderCircuits();
+renderReplay();
+</script>
+
+</body>
+</html>
