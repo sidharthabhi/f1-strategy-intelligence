@@ -1,110 +1,142 @@
-# F1 Strategy Intelligence Dashboard
+# F1 Strategy Intelligence
 
-End-to-end race analytics platform — 7 seasons of Formula 1 data (2018–2024)
-ingested from FastF1, stored in a normalised SQLite database, and surfaced
-through a 7-page Power BI dashboard answering 20 business questions.
+An end-to-end analytics project on seven seasons of Formula 1 race data (2018–2024). Raw timing data is ingested from the FastF1 and Ergast APIs, cleaned and validated in Python, modelled in a normalised SQLite database, analysed with 21 SQL queries, and presented in an interactive single-file HTML dashboard.
 
-## Status — Week 1 Deliverable
+## At a glance
 
-- ✅ Schema defined (7 tables + race_results, 3NF, FK-constrained)
-- ✅ FastF1 → SQLite ingestion with the 7-condition `is_valid_lap` flag
-- ✅ Q4 consistency query (the Week 1 gate)
-- ✅ Smoke test harness
-- 🔜 Week 2: full 2018–2024 backfill
-- 🔜 Week 3–4: remaining 19 SQL queries
-- 🔜 Week 5–8: Power BI dashboard + live mode
+| Metric | Value |
+|---|---|
+| Seasons | 7 (2018–2024) |
+| Races | 149 |
+| Circuits | 31 |
+| Drivers | 40 |
+| Laps ingested | 208,962 |
+| Clean race laps (after validity filtering) | 128,590 |
+| Pit stops | 10,319 |
+| Analytical SQL queries | 21, built on 3 shared views |
 
-## Setup — Windows
+## What it does
+
+The project answers 20 strategy and performance questions, such as:
+
+- Which teams are fastest in the pits, and has that changed over time?
+- Does pole position convert to a win, and at which circuits does it matter most?
+- Which circuits are hardest on tyres? (calculated as a linear regression of lap time against tyre age, written in plain SQLite)
+- Does an undercut or an overcut gain more positions, and where?
+- Which teams recover the most positions after a safety car?
+- Does rain make the finishing order more random?
+- Which driver gets the most pace out of their car, relative to the best lap that car achieved?
+- How closely matched is each pair of teammates in qualifying, race pace and reliability?
+
+## Architecture
+
+```
+FastF1 API ─┐
+            ├─> Python ingestion ─> validity + cleaning ─> SQLite (3NF) ─> SQL views ─> 21 queries
+Ergast API ─┘                                                    │
+                                                                 └─> rollup tables ─> JSON export ─> HTML dashboard
+```
+
+1. **Ingestion** (`fastf1_ingest.py`): pulls qualifying and race sessions for each event and writes circuits, races, teams, drivers, laps, pit stops and results. Re-running is idempotent: an event that is ingested again replaces its own rows and creates no duplicates.
+2. **Enrichment**: `ergast_pitstops.py` fills in accurate pit-stop durations from Ergast, with requests throttled to stay inside the rate limits. `circuit_metadata.py` adds track length, corners and DRS zones.
+3. **Cleaning**: `canonicalise_circuits.py` merges circuits that FastF1 stores under different names (for example Monaco and Monte Carlo), so each track has exactly one ID.
+4. **Validation**: `quality_audit.py`, `data_overview.py` and `smoke_test.py` check the data against known real-world F1 results.
+5. **SQL layer**: three views provide a single definition of a clean lap, normalise tyre compounds across seasons, and give one row per driver per season. The 21 queries build on these views.
+6. **Rollups**: `build_driver_fingerprints.py` and `build_rollups.py` precompute driver profile scores, head-to-head summaries and pit-window models, so the dashboard loads quickly.
+7. **Dashboard**: `export_dashboard_data.py` embeds the data into a single HTML file that needs no server.
+
+## Data quality: the 7-condition clean-lap filter
+
+A lap counts toward analysis only if all seven of these hold:
+
+1. It is not lap 1, which is distorted by the race start.
+2. It is not a pit in-lap.
+3. It is not a pit out-lap, when the tyres are still cold.
+4. It was run under green-flag conditions, with no safety car, virtual safety car, yellow or red flag.
+5. It was not deleted for exceeding track limits.
+6. It has a recorded lap time.
+7. It is not impossibly slow for the circuit's length.
+
+Every query reads clean laps from `v_clean_laps`, so this rule is defined in only one place.
+
+Data is validated against well-known F1 moments: season champions, points totals and famous races. This catches subtle pipeline bugs that unit tests miss. For example, `diagnose_q4.py` traced an anomaly in the consistency ranking to drivers who had more than one row in a single season.
+
+## Dashboard
+
+`dashboard/index.html` is a self-contained page built with HTML, CSS, JavaScript and Chart.js. To view it, open it in a browser.
+
+| Page | What it shows |
+|---|---|
+| Overview | Season summaries, champions and headline numbers |
+| Constructors | Championship evolution race by race, and reliability |
+| Driver DNA | Driver profile radar charts scoring race pace, consistency, qualifying pace, racecraft, tyre management and wet-weather performance |
+| Head to Head | Teammate comparisons across qualifying, race finishes, pace gap and DNFs |
+| Circuits | Tyre degradation, overtaking and how often pole converts to a win |
+| Race Replay | Lap-by-lap position chart for any of the 149 races |
+
+## Database schema
+
+`circuits`, `races`, `teams`, `drivers`, `race_results`, `laps`, `pit_stops`, `telemetry`. The schema is normalised to third normal form, uses foreign-key constraints, and is indexed for the access patterns the queries need. See `database/schema.sql`.
+
+## Setup
+
+Requires Python 3.10 or later.
 
 ```powershell
-# 1. Clone and enter
-cd C:\code
-git clone <your-repo> f1-strategy-intelligence
+git clone https://github.com/sidharthabhi/f1-strategy-intelligence.git
 cd f1-strategy-intelligence
-
-# 2. Virtual env
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# 3. Deps
 pip install -r requirements.txt
 
-# 4. Initialise DB (creates database/f1_analytics.db)
+# Build the database
 python -c "from data.ingestion.db import init_db; init_db()"
+python -m data.ingestion.fastf1_ingest 2018 2024     # long first run; FastF1 caches locally
+python -m data.ingestion.ergast_pitstops 2018 2024
+python -m data.ingestion.circuit_metadata
+python -m data.ingestion.canonicalise_circuits
+python -m data.ingestion.install_views
 
-# 5. Ingest 2024 (Week 1 scope — ~20 min, ~2 GB FastF1 cache)
-python -m data.ingestion.fastf1_ingest 2024
-
-# 6. Gate check
+# Validate
 python -m data.ingestion.smoke_test
+python -m data.ingestion.quality_audit
+
+# Rollups and dashboard
+python -m data.ingestion.build_driver_fingerprints
+python -m data.ingestion.build_rollups
+python -m data.ingestion.export_dashboard_data
 ```
 
-If PowerShell blocks the activation script:
+Run the queries:
+
 ```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+python -m data.ingestion.run_query Q5           # a single query
+python -m data.ingestion.run_query --all        # every query, summary mode
 ```
 
-## Project Structure
+Run all commands from the repository root. The database and the FastF1 cache are excluded from git (see `.gitignore`).
+
+## Project structure
 
 ```
 f1-strategy-intelligence/
-├── data/
-│   ├── ingestion/
-│   │   ├── config.py          # paths, seasons, logging
-│   │   ├── db.py              # SQLite connection + upsert helpers
-│   │   ├── validity.py        # is_valid_lap 7-condition logic
-│   │   ├── fastf1_ingest.py   # main ingestion entry point
-│   │   └── smoke_test.py      # Week 1 gate check
-│   └── fastf1_cache/          # FastF1 local cache (gitignored)
+├── data/ingestion/      # ingestion, enrichment, cleaning, validation, rollups, export
 ├── database/
-│   ├── schema.sql             # CREATE TABLE statements
-│   ├── queries/
-│   │   └── Q4_driver_consistency.sql
-│   └── f1_analytics.db        # SQLite DB (gitignored)
-├── logs/                      # ingestion logs (gitignored)
-├── requirements.txt
-└── README.md
+│   ├── schema.sql
+│   ├── views/           # v_clean_laps, v_compound_normalised, v_driver_seasons
+│   └── queries/         # Q1–Q20 and Q4b
+├── dashboard/           # single-file HTML dashboard and its exported data
+└── requirements.txt
 ```
 
-## Week 1 Commands Cheat Sheet
+## Tech stack
 
-| Task | Command |
-|------|---------|
-| Initialise empty DB | `python -c "from data.ingestion.db import init_db; init_db()"` |
-| Ingest 2024 season | `python -m data.ingestion.fastf1_ingest 2024` |
-| Ingest a single year | `python -m data.ingestion.fastf1_ingest 2023` |
-| Ingest a range | `python -m data.ingestion.fastf1_ingest 2018 2024` |
-| Run Week 1 gate | `python -m data.ingestion.smoke_test` |
-| Inspect DB in shell | `python -c "from data.ingestion.db import connect; c=connect().__enter__(); print(c.execute('SELECT COUNT(*) FROM laps').fetchone())"` |
+Python (pandas, NumPy), FastF1, Ergast API, SQLite, SQL, HTML/CSS/JavaScript, Chart.js
 
-## The 7-Condition `is_valid_lap` Flag
+## Roadmap
 
-Set to 1 only when ALL of:
-1. `lap_number > 1` (excludes formation lap)
-2. `is_pit_lap = 0` (excludes in-laps)
-3. Previous lap `is_pit_lap = 0` (excludes out-laps with cold tires)
-4. `track_status = 'Green'` (excludes SC / VSC / Yellow / Red)
-5. `deleted = 0` (excludes track-limits violations)
-6. `lap_time_sec IS NOT NULL` (excludes partial DNF laps)
-7. `lap_time_sec < circuit_length_km / 80 × 3600` (rejects impossibly slow laps)
+- Power BI report on top of the same SQLite database and rollup tables
 
-Every analytical query filters on `is_valid_lap = 1` — this is what makes
-downstream insights trustworthy.
+## Author
 
-## Troubleshooting
-
-**`ModuleNotFoundError: No module named 'data'`**
-Run commands from the repo root, not from inside `data/ingestion/`.
-
-**FastF1 cache errors on first run**
-Normal for pre-2020 events. The ingestion loop catches these per-session and
-logs a warning — does not crash. Check `logs/f1_ingest.log` for skipped events.
-
-**`sqlite3.IntegrityError: UNIQUE constraint failed: races.year, races.round`**
-You're re-ingesting an event that's already loaded. This is fine — the upsert
-logic catches it. If you see this error raised, update to latest `db.py`.
-
-**Smoke test fails on "VER 2024 consistency < 1.5s"**
-Indicates a validity logic problem. Check: (a) are `track_status` values being
-mapped correctly from FastF1's digit codes, (b) is `is_pit_lap` set correctly?
-Run: `python -c "from data.ingestion.db import connect; [print(dict(r)) for r in connect().__enter__().execute('SELECT track_status, COUNT(*) FROM laps GROUP BY track_status').fetchall()]"`
+Sidhartha Tummanapally — [LinkedIn](https://www.linkedin.com/in/sidhartha-tummanapally-a79136288) · [Portfolio](https://sidharthabhi.github.io/portfolio/)
